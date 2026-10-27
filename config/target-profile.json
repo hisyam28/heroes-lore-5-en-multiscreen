@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "unverified",
+  "apk_sha256": null,
+  "package_name": null,
+  "version_code": null,
+  "version_name": null,
+  "runtime_kind": null,
+  "native_libraries": [],
+  "resource_archives": [],
+  "verified_patches": [],
+  "notes": "Populate only after inspecting the actual target APK. Reference offsets are not a target profile."
+}

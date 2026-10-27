@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "project": "heroes-lore-5-en",
+  "target_language": "en",
+  "status": "awaiting_target_apk",
+  "baseline_policy": "Use the supplied target APK as immutable baseline.",
+  "references": [
+    "https://github.com/sanixmon/heroes-lore-5-en",
+    "https://github.com/hisyam28/heroes-lore-3-en"
+  ]
+}
