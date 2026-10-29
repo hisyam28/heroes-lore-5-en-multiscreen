@@ -39,6 +39,14 @@ texts are included here:
 Upstream source is available at [Unicorn tag 2.1.2](https://github.com/unicorn-engine/unicorn/tree/2.1.2).
 Upstream component notices and licenses continue to apply to distribution.
 
+## Revised artwork
+
+The replacement launcher icon was supplied by the project owner. The English
+wordmark was prepared with the built-in image generation tool, then converted
+to target-specific indexed sprites. Subtitle and caption glyphs use the target
+font through deterministic asset tooling. The original Roman V and crescent
+sprites are retained; no ownership of the original game's artwork is claimed.
+
 ## Project maintenance and game ownership
 
 Target adaptations, multiscreen work, and this release are maintained at

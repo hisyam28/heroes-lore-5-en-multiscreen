@@ -144,11 +144,19 @@ static inline bool plan_indexed_blit565(const GuestFramebuffer& fb, const int32_
     else if (anchor & 0x20) x -= width;
     if (anchor & 2) y -= height >> 1;
     else if (anchor & 4) y -= height;
-    // Keep all edge/clipping cases in the original implementation. Fully
-    // contained rectangles leave CalcClipLCD's inputs unchanged in every mode.
-    if (x < 0 || y < 0 || x < clip[0] || y < clip[1] ||
-        x + width > fb.width || y + height > fb.height ||
-        x + width > clip[2] || y + height > clip[3]) return false;
+    // Target CalcClipLCD, mirror=16 (0x4ef48): advance source x/y by
+    // the clipped left/top amount, then clamp right/bottom. Keep mirrored
+    // edge cases and invalid/offscreen clips on the original guest path.
+    if (clip[0]<0 || clip[1]<0 || clip[2]>fb.width || clip[3]>fb.height ||
+        clip[0]>=clip[2] || clip[1]>=clip[3]) return false;
+    bool clipped=x<clip[0] || y<clip[1] || x+width>clip[2] || y+height>clip[3];
+    if (clipped) {
+        if (mirror!=0x10 || x+width<=clip[0] || y+height<=clip[1] ||
+            x>=clip[2] || y>=clip[3]) return false;
+        if (x<clip[0]) { int32_t cut=clip[0]-x; x+=cut; sx+=cut; width-=cut; }
+        if (y<clip[1]) { int32_t cut=clip[1]-y; y+=cut; sy+=cut; height-=cut; }
+        width=copy_min(width,clip[2]-x);height=copy_min(height,clip[3]-y);
+    }
     uint32_t stride = bits == 4 ? (image.width + 1) / 2 : image.width;
     if (uint64_t(stride) * image.height > 16 * 1024 * 1024) return false;
     uint64_t source_end = uint64_t(image.pixels) + uint64_t(stride) * image.height;
@@ -177,5 +185,33 @@ static inline void indexed_blit_row565(uint16_t* destination, const uint8_t* sou
         if (color != skip_color) destination[flip_x ? width - 1 - x : x] = color;
     }
 }
+// DrawImageBlendingClip565 uses RevisionAlpha565 (+1/+2), unlike
+// FillRectBlending. Keep its distinct 32/64 rounding exactly.
+static inline uint16_t sprite_blend_pixel565(uint16_t dst,uint16_t src,
+    uint32_t alpha,const uint8_t* table) {
+    uint32_t r=dst>>11,g=(dst&0x7e0)>>6,b=dst&31;
+    uint32_t nr=table[(src>>11)*32+r];
+    uint32_t ng=uint32_t(table[((src&0x7e0)>>6)*32+g])*2;
+    uint32_t nb=table[(src&31)*32+b];
+    uint32_t amount=((alpha&255)>>3)+1;
+    if(amount<=31) {
+        nr=(nr*amount+r*(32-amount))>>5;
+        nb=(nb*amount+b*(32-amount))>>5;
+        ng=(ng*(amount*2)+g*2*(64-amount*2))>>6;
+    }
+    return static_cast<uint16_t>((nr<<11)|((ng<<5)&0x7e0)|(nb&31));
+}
+static inline void indexed_blend_row565(uint16_t* destination,const uint8_t* source,
+    const uint16_t* palette,uint32_t sx,uint32_t width,uint32_t bits,bool flip_x,
+    uint32_t skip,uint32_t alpha,const uint8_t* table) {
+    if(!(alpha&255))return;
+    for(uint32_t x=0;x<width;++x) {
+        uint32_t p=sx+x;
+        uint32_t index=bits==4?((p&1)?source[p/2]&15:source[p/2]>>4):source[p];
+        uint16_t color=palette[index];unsigned dx=flip_x?width-1-x:x;
+        if(color!=skip)destination[dx]=sprite_blend_pixel565(destination[dx],color,alpha,table);
+    }
+}
+
 }
 #endif

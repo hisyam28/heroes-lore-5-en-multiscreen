@@ -1,5 +1,18 @@
 # Alur kerja APK target baru
 
+Current release: **Heroes Lore 5 v1.0.5**. On 2026-10-29 the owner accepted
+1.0.4's presentation, reported residual new-game intro stutter, and explicitly
+authorized Git commit/push and a new public GitHub Release. The earlier
+local-only restriction is superseded for this release.
+
+The update includes English intro/rating artwork, the supplied icon, a gold
+HEROES LORE wordmark, and a readable outlined Covenant of Darkness subtitle.
+Save DES and sprite blending were accelerated in the preceding local previews.
+Version 1.0.5 additionally accelerates verified normal-orientation edge clipping,
+with 96 target-ARM comparisons. Original guest, save format, input and gameplay
+scripts remain unchanged. Physical 1.0.5 cutscene timing remains unverified.
+See [release notes](release-v1.0.5.md) and [development notes](local-intro-preview.md).
+
 Prioritas rilis: pengguna meminta perbaikan deskripsi quest dari save lama dan
 publikasi ke `hisyam28/heroes-lore-5-en-multiscreen`. Perbaikan menambahkan jalur
 `BFont::DrawTextLine` yang terverifikasi, tanpa menulis save. APK v1.0.0 memakai

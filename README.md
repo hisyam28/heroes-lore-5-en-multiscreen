@@ -1,10 +1,10 @@
-# Heroes Lore 5 English Multiscreen
+# Heroes Lore 5
 
 An English localization of Heroes Lore 5 with multiscreen support and Android ARM32/ARM64 runtime adaptations. The original **01.01.00** APK remains the game baseline. **[sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en)** provides the technical and translation reference, with changes verified against the target binary.
 
-**Release: v1.0.0** | App name: **Heroes Lore 5 English**
+**Release: v1.0.5** | App name: **Heroes Lore 5** | Covenant of Darkness
 
-[Download APK v1.0.0](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/download/v1.0.0/heroes-lore-5-english-multiscreen-v1.0.0.apk) | [Releases](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/latest) | [Credits](CREDITS.md)
+[Download APK v1.0.5](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/download/v1.0.5/heroes-lore-5-v1.0.5.apk) | [Releases](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/latest) | [Credits](CREDITS.md)
 
 ## Specifications and compatibility
 
@@ -20,9 +20,9 @@ An English localization of Heroes Lore 5 with multiscreen support and Android AR
 | Modern display | Canvas adapts to the screen aspect ratio while preserving object proportions |
 | Modern host alignment | **16 KB** ELF and ZIP alignment |
 | Package | `co.kr.eamobile.hl5.runner` |
-| Version / versionCode | **1.0.0** / **1010100** |
+| Version / versionCode | **1.0.5** / **1010105** |
 | Game baseline | **01.01.00** |
-| APK | Universal ARM, **22,787,239 bytes** (about 23 MB) |
+| APK | Universal ARM, **22,860,967 bytes** (about 23 MB) |
 
 The package minimum is the configured installation threshold, not certification for every device. Android 2.3 has not been tested on physical hardware. Installation has been checked on ARM32 Android 4.0.2 and 4.4 emulators; this does not verify all legacy gameplay. No x86/x86_64 host libraries are included. Minimum RAM and CPU requirements have not been established through device benchmarks.
 
@@ -32,11 +32,12 @@ The package minimum is the configured installation threshold, not certification 
 - **English localization.** **13,825 Hangul text fields** have been translated across **57 DAT tables and 258 SCN scripts** that were inspected. **72 existing English labels** have been shortened to fit their panels. Main menu capitalization is consistent, stat labels are compact, and modern dialogue follows the available text box width.
 - **Quests from older saves.** On the modern runner, Korean titles, categories, and descriptions that exactly match the source dictionary are replaced when displayed. Descriptions are translated before line splitting and scrolling. Save files and quest status/progress are not rewritten; starting a new game is not required for this display fix.
 - **Lifecycle and Exit handling.** Fullscreen is applied after the view is ready. Returning from Home uses pause/resume, and the in-game Exit action closes the task on the modern runner.
-- **Runtime optimizations.** Freed guest memory can be reused. Asset preparation runs in the background, and the cache uses fingerprints. Framebuffer copying, RGB565 raster operations, palette effects, and font metrics are accelerated, with the original functions handling unsupported cases.
+- **Runtime optimizations.** Guest memory can be reused; asset preparation and cache fingerprints avoid unnecessary work. Native helpers accelerate framebuffer/raster operations, sprite blending, normal-orientation edge clipping, palette effects, font metrics and original DES save rounds. Saves synchronize once before close. Unsupported cases retain the original implementation.
+- **English intro and title artwork.** Opening captions and selected rating/trial bitmap labels are translated. The gold HEROES LORE wordmark retains the original Roman V and crescent emblem. COVENANT OF DARKNESS sits directly below the lettering with a dark outline. The supplied launcher icon is included.
 - **Clean presentation.** The green diagnostic overlay and copy-status button are hidden during normal launch. The release APK does not enable Android's `debuggable` flag.
-- **Preserved game data.** The original engine library, gameplay metadata, script opcodes, save format, input configuration, audio, and artwork are retained rather than replaced with reference-version assets. Text changes and host adaptations are tracked separately.
+- **Preserved game data.** The original engine library, gameplay metadata, script opcodes, save format, input configuration, and audio are retained. Selected intro/title/rating artwork changes are explicitly scoped; reference-version game assets are not substituted. Text changes and host adaptations are tracked separately.
 
-Rating artwork on the legacy Android path remains in Korean. The text-field coverage above does not mean every bitmap has been translated. The display bridge for older saves applies to the modern runner; the legacy path does not use that bridge. Old online services are not claimed to have been restored.
+Selected intro/rating artwork now includes English text, but text-field coverage does not certify every bitmap or every legacy UI screen. The display bridge for older saves applies to the modern runner; the legacy path does not use that bridge. Old online services are not claimed to have been restored.
 
 ## Installation and updates
 
@@ -47,31 +48,29 @@ Rating artwork on the legacy Android path remains in Korean. The text-field cove
 
 APKs with a different package or signer may not support the same update path. Do not remove an app containing your saves just to try an installation.
 
-APK v1.0.0 SHA-256:
+APK v1.0.5 SHA-256:
 
 ```text
-dfc424bbabc19a45512857250153af175143a130fcd429131aed8053357618ed
+288dbddf95fff05dabde571e7081a7eab190a251f784861c3e6267369543affd
 ```
 
 ## Validation
 
-**78 local tests passed** for this release, including the older-save quest description regression and final APK checks. Workspace and Git whitespace checks also passed.
+**89 local tests passed** for this release, including final APK payload/version checks. Workspace and Git whitespace checks also passed.
 
-Earlier builds received device testing and feedback on Android 16 with Dimensity 9400+ and Samsung Galaxy A24/Helio G99 hardware, with reported display and performance improvements. The last review accepted the general results while identifying Korean descriptions in older saves as the remaining issue. Release 1.0.0 adds that description-path fix; its final APK had not yet been tested directly on those phones when published.
+- The original ARM renderer and optimized helpers produced identical pixels in **96 edge-clipping cases** and **224 sprite-blending cases**. Original DES output matched **48 forward/reverse-key cases**. Subtitle geometry, animation and sprite loading were also checked against the target.
+- Existing tests protect metadata/opcodes, placeholders/color controls, input, older-save quest rendering, legacy/modern DEX separation, heap behavior and viewport geometry. Font and palette helpers retain their earlier target-ARM comparisons.
+- Build checks cover v1/v2/v3 signatures, the unchanged update signer, a STORED and aligned resource table, and 16 KB alignment for both modern host ABIs.
 
-- Local tests protect VFS structure, metadata/opcodes, placeholders/color controls, input, legacy/modern DEX separation, heap behavior, viewport geometry, and unchanged assets.
-- The regression executes the original ARM **QuestMgr → DrawTextLine → DrawText** path with a Korean description and multiple scroll positions, then checks that quest data bytes remain unchanged.
-- Font helpers were compared against the target ARM functions in **900 cases**, and palette helpers in **384 combinations**.
-- In a three-frame intro sample, the palette helper reduced guest instructions from **1,388,879 to 561,635 (59.56%)**, with an identical framebuffer. The sampled menu/map phases showed no instruction reduction from this palette helper. **This is not an Android FPS improvement percentage.**
-- Build checks cover v1/v2/v3 signatures, the update signer, a STORED resource table with 4-byte alignment, 16 KB host alignment, and package name/version information.
+The owner accepted the 1.0.4 presentation but still reported slight slowness/stutter in the new-game opening cutscene. Version 1.0.5 adds verified acceleration for partially clipped sprites during camera movement. **The final 1.0.5 APK has not yet been benchmarked on Galaxy A24/Helio G99 or Dimensity 9400+ hardware.** No complete stutter fix or FPS increase is claimed. The modern runner executes the original ARM32 engine through Unicorn; the game's smoothness on old native Android devices does not establish its performance on the modern path.
 
-Smooth performance on every phone or in every scene is not guaranteed. Audio, long sessions, repeated portal transitions, saves, and UI variations still require device validation. See the [v1.0.0 release notes](docs/release-v1.0.0.md) for details.
+Android 4.0.2/4.4 emulator installation and earlier Android 16 phone feedback are distinct from final-build gameplay validation. Audio, long sessions, repeated portal transitions and all scene variations still need device testing. See the [v1.0.5 release notes](docs/release-v1.0.5.md) for changes and limits.
 
 ## Source and local builds
 
 This repository contains tooling, target profiles, translation catalogs/overrides, tests, documentation, and the runner patch. **Input APKs, game libraries, dependency binaries, reference snapshots, signing keys, and build outputs are excluded from Git.** The final APK is distributed as a GitHub Release asset.
 
-Local builds require the baseline APK and reference ZIP matching the profile hashes, Python 3.10+, JDK17, Android SDK API36/API9, and the recorded Build Tools and NDK versions. Additional ARM execution tests use Python Unicorn. Toolchains, inputs, and staging directories remain local. See the [release build instructions](docs/release-v1.0.0.md) and [target profile](config/target-profile.json).
+Local builds require the baseline APK and reference ZIP matching the profile hashes, Python 3.10+, JDK17, Android SDK API36/API9, and the recorded Build Tools and NDK versions. Additional ARM execution tests use Python Unicorn. Toolchains, inputs, and staging directories remain local. See the [release build notes](docs/release-v1.0.5.md) and [target profile](config/target-profile.json).
 
 ```powershell
 python -B tools/check_workspace.py

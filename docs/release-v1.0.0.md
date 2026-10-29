@@ -73,7 +73,7 @@ alignment. Build outputs and signing keys stay local. The final APK is uploaded
 as a Release asset rather than force-added to Git, as explicitly requested by
 the project owner.
 
-Release metadata and checksums are in [config/release.json](../config/release.json).
+Release metadata and checksums are in [config/release-v1.0.0.json](../config/release-v1.0.0.json).
 All **78 local tests passed** against the final package, including the release
 name/version, disabled debug flag, quest hook in both host libraries, and
 unchanged APK payloads except for the manifest and the two intentionally updated

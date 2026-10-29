@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "heroes-lore-5-en",
   "target_language": "en",
-  "status": "v1_0_0_release_prepared_saved_quest_render_fixed",
+  "status": "v1_0_5_release_prepared_intro_art_save_crypto_edge_raster",
   "translation_status": "recognized_text_fields_translated_saved_quest_description_render_fix_verified_static_ARM",
   "latest_install_report": {
     "test9": "User reports install/update rejected on regular modern test phone; screenshots contain only App not installed, no PackageManager error code.",
@@ -42,8 +42,8 @@
   "reference_role": "Reference for target-specific analysis; target APK engine and resources remain the baseline",
   "localization": {
     "runtime_baseline": "test10",
-    "english_build": "1.0.0",
-    "scope": "English VFS fields and source-verified short UI labels; separate display-only cached-text/word-wrap bridge and verified font/palette host helpers. Guest SO, DEX, input, artwork and gameplay metadata retained.",
+    "english_build": "1.0.5",
+    "scope": "Source/context-verified English text, selected intro/rating artwork, gold title and outlined subtitle; separate modern display/save-crypto/raster helpers. Original guest, DEX, gameplay scripts, save format and input retained.",
     "translated_slots": 13825,
     "device_tested": false,
     "test11_device_evidence": "User screenshots show English gameplay, overlapping stat labels, remaining Korean quest text, mixed menu capitalization and early dialogue wrapping.",
@@ -53,5 +53,13 @@
     "final_build_device_tested": false,
     "saved_quest_fix": "Handle verified BFont::DrawTextLine before slicing; no save or quest-state writes"
   },
-  "repository": "https://github.com/hisyam28/heroes-lore-5-en-multiscreen"
+  "repository": "https://github.com/hisyam28/heroes-lore-5-en-multiscreen",
+  "latest_release_review": {
+    "date": "2026-10-29",
+    "accepted_preview": "1.0.4",
+    "user_report": "Presentation accepted; some stuttering/slowness in new-game opening cutscene remains.",
+    "release_candidate": "1.0.5",
+    "change": "Verified non-mirrored edge blit/blend acceleration",
+    "physical_candidate_tested": false
+  }
 }

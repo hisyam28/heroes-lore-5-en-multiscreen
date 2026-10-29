@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ALPHA = '_ZN7Graphic13FillRectAlphaEiiiiihi'
 MIRROR = '_ZN7Graphic22DrawImageMirrorClip565EiiiiiP8GbmImageiihi'
 FRAME_BLEND = '_ZN7Graphic28ChangeFrameBufferBlending565Eiihh'
+SPRITE_BLEND = '_ZN7Graphic24DrawImageBlendingClip565EiiiiiP8GbmImageiihhhi'
 RECT_BLEND = '_ZN7Graphic16FillRectBlendingEiiiiihhi'
 
 
@@ -71,13 +72,16 @@ unsigned run_raster(unsigned operation, const uint32_t* a) {
     hl5::IndexedBlitPlan plan;
     const auto& image=*reinterpret_cast<const hl5::GuestIndexedImage*>(a[6]);
     if (!hl5::plan_indexed_blit565(fb,reinterpret_cast<const int32_t*>(a[0]+0x40e0),
-            a[2],a[3],a[4],a[5],image,a[7],a[8],a[9]&255,a[10],plan)) return 0;
+            a[2],a[3],a[4],a[5],image,a[7],a[8],a[9]&255,a[operation==5?12:10],plan)) return 0;
+    if(operation==5 && (a[10]>15 || !(a[11]&255))) return 0;
     uint32_t key=*reinterpret_cast<const uint32_t*>(0x4016a234);
     for (int y=0; y<plan.destination.height; ++y) {
         int dy=plan.destination.y+(plan.flip_y ? plan.destination.height-1-y : y);
         auto row=reinterpret_cast<uint16_t*>(fb.pixels+dy*fb.stride+plan.destination.x*2);
         auto src=reinterpret_cast<const uint8_t*>(image.pixels+(plan.sy+y)*plan.source_stride);
-        hl5::indexed_blit_row565(row,src,reinterpret_cast<const uint16_t*>(image.palette),
+        if(operation==5) hl5::indexed_blend_row565(row,src,reinterpret_cast<const uint16_t*>(image.palette),
+            plan.sx,plan.destination.width,plan.bits,plan.flip_x,key,a[11],reinterpret_cast<const uint8_t*>(a[0]+0x6d+a[10]*1024));
+        else hl5::indexed_blit_row565(row,src,reinterpret_cast<const uint16_t*>(image.palette),
             plan.sx,plan.destination.width,plan.bits,plan.flip_x,key);
     }
     return 1;
@@ -97,6 +101,7 @@ unsigned run_raster(unsigned operation, const uint32_t* a) {
         with zipfile.ZipFile(diff.APK) as archive:
             cls.target = archive.read('lib/armeabi/libHeroesLore5.so')
         symbols = arm.elf_symbols(cls.target)
+        cls.sprite_blend_entry=symbols[SPRITE_BLEND].address+0x40000000
         cls.alpha_entry = symbols[ALPHA].address + 0x40000000
         cls.mirror_entry = symbols[MIRROR].address + 0x40000000
         cls.frame_blend_entry = symbols[FRAME_BLEND].address + 0x40000000
@@ -162,11 +167,48 @@ unsigned run_raster(unsigned operation, const uint32_t* a) {
                             args = [0x50009000, 0x50000000, 25, 24, 8, 7, 0x50000080, sx, 2, mirror, anchor]
                             self.compare(1, args, self.mirror_entry)
 
+    def test_transparent_sprite_blending_matches_target_modes_alpha_and_mirroring(self):
+        cases=0
+        for bits in (4,8):
+            for mirror in (16,8,4,12):
+                for mode in (0,1,7,15):
+                    for alpha in (1,7,8,127,247,248,255):
+                        rng=self.setup_raster(seed=bits+mirror+mode+alpha)
+                        iw,ih=13,12;stride=(iw+1)//2 if bits==4 else iw
+                        self.uc.mem_write(0x50000080,struct.pack('<BBHHHII',bits|16,0,iw,ih,0,0x50007000,0x50005000))
+                        self.uc.mem_write(0x50005000,bytes(rng.randrange(256) for _ in range(stride*ih)))
+                        self.uc.mem_write(0x50007000,struct.pack('<256H',0x1234,*[rng.randrange(65536) for _ in range(255)]))
+                        self.uc.mem_write(0x4016a234,struct.pack('<I',0x1234))
+                        self.uc.mem_write(0x5000906d+mode*1024,bytes(rng.randrange(32) for _ in range(1024)))
+                        args=[0x50009000,0x50000000,25,24,8,7,0x50000080,1,2,mirror,mode,alpha,18]
+                        self.compare(5,args,self.sprite_blend_entry);cases+=1
+        self.assertEqual(cases,224)
+
+    def test_unmirrored_edge_blits_and_blends_match_target(self):
+        cases=0
+        positions=((-4,20),(58,20),(20,-4),(20,58),(-4,-4),(58,58),(0,0),(52,52))
+        for bits in (4,8):
+            for clip in ((0,0,64,64),(3,4,59,60)):
+                for x,y in positions:
+                    for op,alpha in ((1,255),(5,127),(5,255)):
+                        rng=self.setup_raster(seed=bits+x+y+op+alpha)
+                        iw,ih=17,15;stride=(iw+1)//2 if bits==4 else iw
+                        self.uc.mem_write(0x5000d0e0,struct.pack('<4i',*clip))
+                        self.uc.mem_write(0x50000080,struct.pack('<BBHHHII',bits|16,0,iw,ih,0,0x50007000,0x50005000))
+                        self.uc.mem_write(0x50005000,bytes(rng.randrange(256) for _ in range(stride*ih)))
+                        self.uc.mem_write(0x50007000,struct.pack('<256H',0x1234,*[rng.randrange(65536) for _ in range(255)]))
+                        self.uc.mem_write(0x4016a234,struct.pack('<I',0x1234))
+                        self.uc.mem_write(0x5000906d+7*1024,bytes(rng.randrange(32) for _ in range(1024)))
+                        args=[0x50009000,0x50000000,x,y,14,10,0x50000080,1,2,16]
+                        args+=([0] if op==1 else [7,alpha,0])
+                        self.compare(op,args,self.mirror_entry if op==1 else self.sprite_blend_entry);cases+=1
+        self.assertEqual(cases,96)
+
     def test_edge_clipping_and_unsupported_format_keep_guest_path(self):
         self.setup_raster()
         self.uc.mem_write(0x50000080, struct.pack('<BBHHHII', 8, 0, 13, 12, 0, 0x50007000, 0x50005000))
         args = [0x50009000, 0x50000000, -1, 24, 8, 7, 0x50000080, 0, 2, 16, 0]
-        self.assertEqual(self.native(1, args), 0)
+        self.compare(1,args,self.mirror_entry)
         args[2] = 25
         args[9] = 99
         self.assertEqual(self.native(1, args), 0)

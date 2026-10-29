@@ -279,6 +279,36 @@
         "address": 844652,
         "bytes": 372,
         "sha256": "9cd9f5dd711bd3aa627a7d3486c655f1457cbf2ead900b7b4d3bb7b1301b0393"
+      },
+      "desRound": {
+        "address": 212568,
+        "bytes": 588,
+        "sha256": "e989de21ae6e503e14cc318aff997500de449192f4c5795dba325016caae8afc"
+      },
+      "MAT_EXP": {
+        "address": 1437044,
+        "bytes": 48,
+        "sha256": "bb8d87ef4dc93e39aba7e0edf9135764379aaa05fbc79bc907c6a15f116cbdf5"
+      },
+      "MAT_PERMU": {
+        "address": 1437092,
+        "bytes": 32,
+        "sha256": "861ebba16456ae91815611c4cf4bb4957e5952b4a882e02c48df85920b093402"
+      },
+      "MAT_SBOX": {
+        "address": 1437124,
+        "bytes": 512,
+        "sha256": "ce37c8ec1b180c7425e2bf597b9353c971f3edd10650547513b89e892250a6e6"
+      },
+      "KEY4REAL": {
+        "address": 1500976,
+        "bytes": 768,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "_ZN7Graphic24DrawImageBlendingClip565EiiiiiP8GbmImageiihhhi": {
+        "address": 364360,
+        "bytes": 7896,
+        "sha256": "0cf5b0f9aa02bf87268acb22ae727aa86137ecf855c165e0a97ea6cb867703d1"
       }
     },
     "evidence": {

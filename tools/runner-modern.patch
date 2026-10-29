@@ -157,7 +157,23 @@
  #include <iostream>
  #include <stdexcept>
  #include <cmath>
-@@ -42,11 +43,21 @@
+@@ -11,6 +12,7 @@
+ #include <cstdio>
+ #include <cerrno>
+ #include "hl5_save_trace.h"
++#include "save_commit.h"
+ #ifdef __ANDROID__
+ #include <android/log.h>
+ #define LOG_TAG "HL5_Arm32Engine"
+@@ -21,6 +23,7 @@
+ #define LOGE(...) do {} while(0)
+ #endif
+ namespace hl5 {
++static SaveCommitTracker g_save_commits;
+ 
+ Arm32NativeEngine::Arm32NativeEngine()
+     : uc_(nullptr),
+@@ -42,11 +45,21 @@
  
  bool Arm32NativeEngine::initialize() {
      close();
@@ -179,7 +195,7 @@
      // 1. Map Stack: 0x70000000 .. 0x70020000
      if (!map_memory(NATIVE_STACK_BASE, NATIVE_STACK_SIZE, UC_PROT_READ | UC_PROT_WRITE)) {
          return false;
-@@ -122,10 +133,39 @@
+@@ -122,10 +135,39 @@
  }
  
  uint32_t Arm32NativeEngine::allocate_heap(size_t size, size_t alignment) {
@@ -223,7 +239,7 @@
  }
  
  uint32_t Arm32NativeEngine::write_string(const std::string& str) {
-@@ -186,6 +226,9 @@
+@@ -186,6 +228,9 @@
          return dst;
      });
  
@@ -233,7 +249,7 @@
      register_host_hook("memset", [this](const std::vector<uint32_t>& args) -> uint32_t {
          uint32_t dst = args[0], val = args[1] & 0xFF, n = args[2];
          if (n > 0) {
-@@ -210,14 +253,19 @@
+@@ -210,14 +255,19 @@
      });
  
      register_host_hook("calloc", [this](const std::vector<uint32_t>& args) -> uint32_t {
@@ -256,7 +272,7 @@
      });
  
      register_host_hook("strcpy", [this](const std::vector<uint32_t>& args) -> uint32_t {
-@@ -389,7 +437,7 @@
+@@ -389,7 +439,7 @@
  
      register_host_hook("__errno", [this](const std::vector<uint32_t>&) -> uint32_t {
          // Return a stable guest address for errno (4 bytes, always 0)
@@ -265,7 +281,38 @@
          if (errno_addr == 0) {
              errno_addr = allocate_heap(4, 4);
              uint32_t zero = 0;
-@@ -612,20 +660,20 @@
+@@ -495,12 +545,14 @@
+         }
+         ssize_t n = ::write(fd, tmp.data(), count);
+         if (n > 0) {
+-            ::fsync(fd);
++            // The save writer closes each completed file. Fence once there,
++            // preserving immediate sync for untracked/non-save descriptors.
++            if (g_hl5_save_fd_paths.find(fd)==g_hl5_save_fd_paths.end() || !g_save_commits.mark(fd)) ::fsync(fd);
+         }
+         auto it = g_hl5_save_fd_paths.find(fd);
+         if (it != g_hl5_save_fd_paths.end()) {
+             if (n >= 0) {
+-                HL5_SAVE_LOG("write path=\"%s\" fd=%d req=%u wrote=%d(fsynced)", it->second.c_str(),
++                HL5_SAVE_LOG("write path=\"%s\" fd=%d req=%u wrote=%d(commit on close)", it->second.c_str(),
+                              fd, (unsigned)count, (int)n);
+             } else {
+                 int e = errno;
+@@ -534,7 +586,12 @@
+         int fd = static_cast<int>(args[0]);
+         if (fd > 2) {
+             auto it = g_hl5_save_fd_paths.find(fd);
+-            uint32_t rc = static_cast<uint32_t>(::close(fd));
++            int sync_errno=0;
++            int closed=commit_save_close(g_save_commits,fd,
++                [&sync_errno](int value){int rc;do {rc=::fsync(value);}while(rc<0 && errno==EINTR);
++                    if(rc<0)sync_errno=errno;return rc;},[](int value){return ::close(value);});
++            if(sync_errno)errno=sync_errno;
++            uint32_t rc=static_cast<uint32_t>(closed);
+             if (it != g_hl5_save_fd_paths.end()) {
+                 if (rc == 0) {
+                     HL5_SAVE_LOG("close path=\"%s\" fd=%d -> ok", it->second.c_str(), fd);
+@@ -612,20 +669,20 @@
  
  void Arm32NativeEngine::on_code_hook(uc_engine* uc, uint64_t address, uint32_t /*size*/, void* user_data) {
      auto* self = static_cast<Arm32NativeEngine*>(user_data);
@@ -295,7 +342,7 @@
      if (sp >= NATIVE_STACK_BASE && sp <= (NATIVE_STACK_BASE + NATIVE_STACK_SIZE - 32)) {
          uint32_t stack_words[8] = {0};
          if (self->read_memory(sp, stack_words, sizeof(stack_words))) {
-@@ -642,6 +690,8 @@
+@@ -642,6 +699,8 @@
      }
      uc_reg_write(uc, UC_ARM_REG_R0, &ret_val);
      uc_reg_write(uc, UC_ARM_REG_PC, &lr);
@@ -304,7 +351,7 @@
  }
  
  void Arm32NativeEngine::on_exit_hook(uc_engine* uc, uint64_t /*address*/, uint32_t /*size*/, void* /*user_data*/) {
-@@ -649,6 +699,7 @@
+@@ -649,6 +708,7 @@
  }
  
  uint32_t Arm32NativeEngine::call_function(uint32_t target_vaddr, const std::vector<uint32_t>& args, uint64_t timeout_us) {
@@ -312,7 +359,7 @@
      // 1. Set CPSR to user mode (0x10) so banked SP/LR are active
      uint32_t cpsr = 0x10;
      uc_reg_write(uc_, UC_ARM_REG_CPSR, &cpsr);
-@@ -677,11 +728,15 @@
+@@ -677,11 +737,15 @@
  
      // 5. Start emulation
      uc_err err = uc_emu_start(uc_, target_vaddr, 0, timeout_us, 0);
@@ -685,7 +732,7 @@
  #include "jni_bridge_core.h"
  #include "gles_bridge.h"
  #include "vfs_adapter.h"
-@@ -8,6 +9,14 @@
+@@ -8,6 +9,15 @@
  #include "arm32_elf_loader.h"
  #include <unicorn/arm.h>
  #include "hl5_save_trace.h"
@@ -693,6 +740,7 @@
 +#include "display_geometry.h"
 +#include "framebuffer_copy.h"
 +#include "raster_rgb565.h"
++#include "save_crypto.h"
 +#include "font_metrics.h"
 +#include "render_text_data.h"
 +#include <algorithm>
@@ -700,7 +748,7 @@
  #include <unistd.h>
  #include <fcntl.h>
  #include <sys/stat.h>
-@@ -54,6 +63,11 @@
+@@ -54,6 +64,11 @@
  int32_t                g_current_game_substate = -1;
  int32_t                g_current_game_popup = -1;
  bool                   g_engine_ready = false;
@@ -712,7 +760,7 @@
  std::string            g_last_frame_status = "Awaiting first frame";
  
  // Unique asset name mapping (mirrors CletEntry.getUniqueNumberFromStrings / getUniqueAssetNameFromID)
-@@ -78,6 +92,211 @@
+@@ -78,6 +93,253 @@
  int32_t                g_music_volume = 80;
  int32_t                g_sound_volume = 80;
  
@@ -906,6 +954,48 @@
 +}
 +
 +
++uc_hook g_sprite_blend_hook=0,g_save_des_hook=0;
++uint32_t g_des_key=0,g_des_expansion_address=0;
++uint8_t g_des_expansion[48],g_des_permutation[32],g_des_sbox[512];
++void accelerate_save_des(uc_engine* uc,uint64_t,uint32_t,void*) {
++    uint32_t a[4]={},lr=0,left[32],right[32];uint8_t key[768];
++    int regs[]={UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_LR};
++    void* values[]={&a[0],&a[1],&lr};
++    if(uc_reg_read_batch(uc,regs,values,3)!=UC_ERR_OK || !g_des_key ||
++        uint64_t(a[0])+128>0xffffffffULL || uint64_t(a[1])+128>0xffffffffULL ||
++        (uint64_t(a[0])<uint64_t(a[1])+128 && uint64_t(a[1])<uint64_t(a[0])+128) ||
++        !g_native_engine.read_memory(a[0],left,128) || !g_native_engine.read_memory(a[1],right,128) ||
++        !g_native_engine.read_memory(g_des_key,key,sizeof(key))) return;
++    if(!hl5::des_round_bits(left,right,key,g_des_expansion,g_des_permutation,g_des_sbox))return;
++    if(!g_native_engine.write_memory(a[0],left,128) || !g_native_engine.write_memory(a[1],right,128))
++        throw std::runtime_error("DES commit failed; stopped before replaying save encryption");
++    uc_reg_write(uc,UC_ARM_REG_R0,&g_des_expansion_address);uc_reg_write(uc,UC_ARM_REG_PC,&lr);
++}
++void accelerate_sprite_blend(uc_engine* uc,uint64_t,uint32_t,void*) {
++    uint32_t a[13]={},lr=0;
++    if(!read_raster_arguments(uc,a,13,lr) || (a[10]&255)>15)return;
++    if(!(a[11]&255)){uc_reg_write(uc,UC_ARM_REG_PC,&lr);return;}
++    hl5::GuestFramebuffer fb{};hl5::GuestIndexedImage image{};int32_t clip[4]={};
++    hl5::IndexedBlitPlan plan;uint32_t skip=0;
++    if(!g_native_engine.read_memory(a[1],&fb,sizeof(fb)) ||
++        !g_native_engine.read_memory(a[6],&image,sizeof(image)) ||
++        !g_native_engine.read_memory(a[0]+0x40e0,clip,sizeof(clip)) ||
++        !hl5::plan_indexed_blit565(fb,clip,a[2],a[3],a[4],a[5],image,a[7],a[8],a[9]&255,a[12],plan))return;
++    g_indexed_pixels.resize(size_t(plan.source_stride)*image.height);
++    if(!g_native_engine.read_memory(image.pixels,g_indexed_pixels.data(),g_indexed_pixels.size()) ||
++        !g_native_engine.read_memory(image.palette,g_indexed_palette,plan.bits==4?32:512) ||
++        !g_native_engine.read_memory(g_skip_color_address,&skip,4) ||
++        !g_native_engine.read_memory(a[0]+0x6d+(a[10]&255)*1024,g_effect_table,1024) ||
++        !read_raster_rectangle(fb,plan.destination))return;
++    for(int y=0;y<plan.destination.height;++y) {
++        int dy=plan.flip_y?plan.destination.height-1-y:y;
++        hl5::indexed_blend_row565(g_raster_plane.data()+dy*plan.destination.width,
++            g_indexed_pixels.data()+(plan.sy+y)*plan.source_stride,g_indexed_palette,
++            plan.sx,plan.destination.width,plan.bits,plan.flip_x,skip,a[11],g_effect_table);
++    }
++    write_raster_rectangle(fb,plan.destination);uc_reg_write(uc,UC_ARM_REG_PC,&lr);
++}
++
 +void publish_boot_status(JNIEnv* env, jobject activity, const std::string& status) {
 +    g_last_frame_status = status;
 +    LOGI("%s", status.c_str());
@@ -924,7 +1014,7 @@
  JNIEnv* get_host_env() {
      if (!g_host_jvm) return nullptr;
      JNIEnv* env = nullptr;
-@@ -199,6 +418,11 @@
+@@ -199,6 +461,11 @@
  
          // Built-in Java method stubs:
          if (cls == "co/kr/eamobile/CletEntry") {
@@ -936,7 +1026,7 @@
              if (name == "getUniqueNumberFromStrings" && extra_args.size() >= 1) {
                  // Resolve string handle → lookup/assign unique ID
                  auto* str_desc = g_handle_table.find_descriptor(extra_args[0]);
-@@ -216,16 +440,14 @@
+@@ -216,16 +483,14 @@
                  int id = static_cast<int>(extra_args[0]);
                  auto it = g_id_to_name.find(id);
                  std::string result = (it != g_id_to_name.end()) ? it->second : "";
@@ -954,7 +1044,7 @@
                  return {true, h};
              }
              if (name == "freeMemory") return {true, 64 * 1024 * 1024};
-@@ -491,18 +713,16 @@
+@@ -491,18 +756,16 @@
              uint32_t str_handle = args[1];
              auto* desc = g_handle_table.find_descriptor(str_handle);
              if (!desc) return 0;
@@ -983,7 +1073,7 @@
  
      // GetJavaVM (offset 0x36C)
      register_jni_slot(table_vaddr, 0x36C, "JNIEnv::GetJavaVM",
-@@ -749,12 +969,15 @@
+@@ -749,12 +1012,15 @@
      JNIEnv* env,
      jobject thiz,
      jstring internalPathStr,
@@ -1002,7 +1092,7 @@
  
      // Cache host JavaVM and MainActivity audio callback methods
      env->GetJavaVM(&g_host_jvm);
-@@ -777,17 +1000,50 @@
+@@ -777,17 +1043,50 @@
          g_mid_free_sound    = env->GetMethodID(act_cls, "onFreeSoundClip",    "(J)I");
          g_mid_set_sound_vol = env->GetMethodID(act_cls, "onSetSoundVolume",   "(I)V");
      }
@@ -1054,7 +1144,7 @@
          return;
      }
      LOGI("[MILESTONE 3/9 PASS] Native ARM32 Unicorn CPU Engine initialized successfully on GLThread");
-@@ -833,14 +1089,49 @@
+@@ -833,14 +1132,59 @@
  
      if (!loaded) {
          LOGE("ELF binary not found or failed to load");
@@ -1089,6 +1179,7 @@
 +    g_skip_color_address = g_elf_loader.find_symbol("SKIP_COLOR");
 +    struct RasterHook { const char* name; uc_hook* hook; GuestCodeCallback callback; GuardedCallback guarded; };
 +    static RasterHook raster_hooks[] = {
++        {"_ZN7Graphic24DrawImageBlendingClip565EiiiiiP8GbmImageiihhhi", &g_sprite_blend_hook, accelerate_sprite_blend, {accelerate_sprite_blend}},
 +        {"_ZN7Graphic13FillRectAlphaEiiiiihi", &g_alpha_fill_hook, accelerate_alpha_fill, {accelerate_alpha_fill}},
 +        {"_ZN7Graphic22DrawImageMirrorClip565EiiiiiP8GbmImageiihi", &g_indexed_blit_hook, accelerate_indexed_blit, {accelerate_indexed_blit}},
 +        {"_ZN7Graphic28ChangeFrameBufferBlending565Eiihh", &g_frame_blend_hook, accelerate_frame_blend, {accelerate_frame_blend}},
@@ -1103,11 +1194,20 @@
 +            reinterpret_cast<void*>(guarded_guest_callback), &raster.guarded, entry, entry);
 +        if (error != UC_ERR_OK) LOGW("Native raster unavailable: %s", uc_strerror(error));
 +    }
++    g_des_key=g_elf_loader.find_symbol("KEY4REAL");
++    g_des_expansion_address=g_elf_loader.find_symbol("MAT_EXP");
++    if(g_des_key && g_native_engine.read_memory(g_des_expansion_address,g_des_expansion,48) &&
++        g_native_engine.read_memory(g_elf_loader.find_symbol("MAT_PERMU"),g_des_permutation,32) &&
++        g_native_engine.read_memory(g_elf_loader.find_symbol("MAT_SBOX"),g_des_sbox,512)) {
++        uint32_t entry=g_elf_loader.find_symbol("desRound");static GuardedCallback callback{accelerate_save_des};
++        if(entry)uc_hook_add(g_native_engine.uc_,&g_save_des_hook,UC_HOOK_CODE,
++            reinterpret_cast<void*>(guarded_guest_callback),&callback,entry,entry);
++    }
 +    install_font_bridge();
      // 5. Build JNI bridge vtable in guest memory
      LOGI("[MILESTONE 5/9] Setting up JNI bridge vtable");
      setup_jni_bridge();
-@@ -848,6 +1139,7 @@
+@@ -848,6 +1192,7 @@
      // 6. Execute authentic boot sequence (mirrors CletEntry.smali startup)
      LOGI("[MILESTONE 6/9] Executing authentic guest boot sequence");
      try {
@@ -1115,7 +1215,7 @@
          // Stage 1: nativeInitKernel — creates AndroidService singleton, caches Java method IDs
          g_handle_table.push_local_frame();
          g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
-@@ -861,6 +1153,7 @@
+@@ -861,6 +1206,7 @@
          }
          g_handle_table.pop_local_frame();
  
@@ -1123,7 +1223,7 @@
          // Stage 2: nativeInitDisplay — configures screen dimensions, color depth, magnification
          g_handle_table.push_local_frame();
          g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
-@@ -871,29 +1164,18 @@
+@@ -871,29 +1217,18 @@
              uint32_t mag_bits = 0;
              memcpy(&mag_bits, &mag, sizeof(float));
  
@@ -1157,7 +1257,7 @@
          }
          g_handle_table.pop_local_frame();
  
-@@ -904,6 +1186,7 @@
+@@ -904,6 +1239,7 @@
              LOGI("MIDASKernelManager singleton at 0x%08x", g_km_instance);
          }
  
@@ -1165,7 +1265,7 @@
          // Stage 3: nativeInitFileStorage — sets internal/external storage paths
          g_handle_table.push_local_frame();
          g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
-@@ -927,6 +1210,7 @@
+@@ -927,6 +1263,7 @@
          }
          g_handle_table.pop_local_frame();
  
@@ -1173,7 +1273,7 @@
          // Stage 4: nativeInitVFS — opens and registers data.vfs.mp3 with VFS adapter
          g_handle_table.push_local_frame();
          g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
-@@ -962,7 +1246,7 @@
+@@ -962,7 +1299,7 @@
                  uint32_t fd_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, fd_class);
  
                  uint32_t len_low = static_cast<uint32_t>(vfs_len & 0xFFFFFFFF);
@@ -1182,7 +1282,7 @@
  
                  LOGI("[BOOT 4/7] nativeInitVFS at 0x%08x", init_vfs_sym);
                  g_native_engine.call_function(init_vfs_sym, {
-@@ -978,6 +1262,7 @@
+@@ -978,6 +1315,7 @@
          }
          g_handle_table.pop_local_frame();
  
@@ -1190,7 +1290,7 @@
          // Stage 5: nativeInitAudioConfiguration
          g_handle_table.push_local_frame();
          g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
-@@ -989,6 +1274,7 @@
+@@ -989,6 +1327,7 @@
          }
          g_handle_table.pop_local_frame();
  
@@ -1198,7 +1298,7 @@
          // Stage 6: nativeStartApp — creates CGame, enters main menu
          g_handle_table.push_local_frame();
          g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
-@@ -1000,9 +1286,10 @@
+@@ -1000,9 +1339,10 @@
          }
          g_handle_table.pop_local_frame();
  
@@ -1210,7 +1310,7 @@
          if (game_obj >= 0x40000000) {
              g_game_instance = game_obj;
              LOGI("[BOOT 7/7] CGame object at 0x%08x — game world initialized", game_obj);
-@@ -1011,12 +1298,12 @@
+@@ -1011,12 +1351,12 @@
          }
  
          g_engine_ready = true;
@@ -1225,7 +1325,7 @@
      }
  }
  
-@@ -1031,39 +1318,44 @@
+@@ -1031,39 +1371,44 @@
      g_surface_h = height;
      g_gles_bridge.set_surface_size(width, height);
  
@@ -1284,7 +1384,7 @@
              } else if (update_sym != 0) {
                  g_native_engine.call_function(update_sym, {g_km_instance});
              }
-@@ -1071,14 +1363,14 @@
+@@ -1071,14 +1416,14 @@
                  LOGI("[MILESTONE 7/9] Successfully executed first guest game-loop tick");
              }
              
@@ -1303,7 +1403,7 @@
                  if (state_ptr >= 0x40000000) {
                      uint32_t vtable = 0;
                      g_native_engine.read_memory(state_ptr, &vtable, 4);
-@@ -1092,33 +1384,26 @@
+@@ -1092,33 +1437,26 @@
  
                      // Authentic Offline Hardening:
                      // 1. Mark legacy carrier SMS flag [game_obj + 42] = 'N' (0x4E) to skip SMS consent loop.
@@ -1346,7 +1446,7 @@
                          if (s_id == 0) {
                              // Cold boot fast-fail: bypass 60s dead-server CheckEvent hang
                              uint32_t load_logo_sym = g_elf_loader.find_symbol("_ZN13StateMainMenu14LoadLogoSpriteEa");
-@@ -1138,18 +1423,30 @@
+@@ -1138,18 +1476,30 @@
                                  LOGI("[OFFLINE_HARDENING] Recovered from SMS consent prompt (SubState 1) -> Logo Animation (SubState 3)");
                              }
                          } else if (s_id == 3) {
@@ -1383,7 +1483,7 @@
      const auto& diag = g_gles_bridge.diagnostics();
      if (g_frame_counter == 1) {
          LOGI("[MILESTONE 8/9] First frame rendered: DrawArrays=%u, Ortho=[%.0f, %.0f, %.0f, %.0f]",
-@@ -1165,7 +1462,7 @@
+@@ -1165,7 +1515,7 @@
               "Viewport: %dx%d | State: %d.%d (Pop: %d)\n"
               "DrawArrays: %u | TexBinds: %u (Tex: %u)\n"
               "Touch Rx/Tx: %u/%u | Last: t=%d raw=(%d,%d) game=(%d,%d)\n"
@@ -1392,7 +1492,7 @@
               "Status: %s",
               static_cast<unsigned long long>(g_frame_counter),
               g_gles_bridge.gles_provider_name(),
-@@ -1181,6 +1478,7 @@
+@@ -1181,6 +1531,7 @@
               g_last_touch_game_x, g_last_touch_game_y,
               diag.last_ortho_left, diag.last_ortho_right,
               diag.last_ortho_bottom, diag.last_ortho_top,
@@ -1400,7 +1500,7 @@
               g_last_frame_status.c_str());
  
      return env->NewStringUTF(status_buf);
-@@ -1216,23 +1514,14 @@
+@@ -1216,23 +1567,14 @@
      }
      g_last_touch_type = event_type;
  
@@ -1428,7 +1528,7 @@
          return;
      }
  
-@@ -1246,62 +1535,7 @@
+@@ -1246,62 +1588,7 @@
              // JNI signature: nativeTouchHandleEvent(JNIEnv* env, jobject thiz, jint type, jint x, jint y, jint id)
              // In Unicorn guest execution:
              // R0 = jnienv (0), R1 = thiz (0), R2 = type, R3 = x
@@ -1492,7 +1592,7 @@
              g_native_engine.call_function(touch_sym, {g_jnienv32_ptr, g_thiz_handle,
                                                        static_cast<uint32_t>(event_type),
                                                        static_cast<uint32_t>(game_x),
-@@ -1314,52 +1548,32 @@
+@@ -1314,52 +1601,32 @@
      }
  }
  JNIEXPORT void JNICALL
@@ -1563,7 +1663,7 @@
      jobject /*thiz*/) {
      LOGI("nativeOnDestroy invoked from UI thread");
      std::lock_guard<std::mutex> lock(g_engine_mutex);
-@@ -1368,5 +1582,10 @@
+@@ -1368,5 +1635,10 @@
      } catch (...) {}
      g_engine_ready = false;
      g_km_instance = 0;
@@ -2010,91 +2110,8 @@
 +        if (nativeLibraryLoaded && glSurfaceView != null && isFinishing()) nativeOnDestroy();
      }
  }
---- /dev/null
-+++ b/app/src/main/java/co/kr/eamobile/hl5/runner/TargetAssets.java
-@@ -0,0 +1,64 @@
-+package co.kr.eamobile.hl5.runner;
-+import android.content.Context;
-+import android.util.AtomicFile;
-+import java.io.*;
-+import java.nio.charset.StandardCharsets;
-+import java.security.MessageDigest;
-+import org.json.JSONObject;
-+final class TargetAssets {
-+    private static JSONObject readJson(InputStream input) throws Exception {
-+        ByteArrayOutputStream out=new ByteArrayOutputStream(); byte[] b=new byte[4096]; int n;
-+        while((n=input.read(b))!=-1) out.write(b,0,n);
-+        return new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));
-+    }
-+    private static String hex(byte[] bytes) {
-+        char[] chars="0123456789abcdef".toCharArray(),out=new char[bytes.length*2];
-+        for(int i=0;i<bytes.length;i++){out[i*2]=chars[(bytes[i]&255)>>>4];out[i*2+1]=chars[bytes[i]&15];}
-+        return new String(out);
-+    }
-+    private static String digest(InputStream input) throws Exception {
-+        MessageDigest sha=MessageDigest.getInstance("SHA-256");byte[] b=new byte[65536];int n;
-+        while((n=input.read(b))!=-1)sha.update(b,0,n);
-+        return hex(sha.digest());
-+    }
-+    static boolean cacheMatches(File file,JSONObject stamp,String hash) {
-+        return stamp!=null && file.isFile() && hash.equals(stamp.optString("sha256"))
-+            && file.length()==stamp.optLong("length",-1) && file.lastModified()==stamp.optLong("modified",-1);
-+    }
-+    static synchronized void install(Context context,File directory) throws Exception {
-+        if(directory==null)throw new IOException("Internal storage unavailable");
-+        JSONObject expected;
-+        try(InputStream input=context.getAssets().open("target-assets.json")){expected=readJson(input);}
-+        AtomicFile cache=new AtomicFile(new File(directory,"runner-assets-verified.json"));
-+        JSONObject stamps;
-+        try(InputStream input=cache.openRead()){stamps=readJson(input);}
-+        catch(Exception missing){stamps=new JSONObject();}
-+        boolean changed=false;
-+        for(String name:new String[]{"libHeroesLore5.so","data.vfs.mp3"}){
-+            String hash=expected.getString(name);
-+            AtomicFile target=new AtomicFile(new File(directory,name));File base=target.getBaseFile();
-+            if(!new File(base.getPath()+".bak").exists() && !new File(base.getPath()+".new").exists()
-+                && cacheMatches(base,stamps.optJSONObject(name),hash))continue;
-+            boolean verified=false;
-+            try(InputStream input=target.openRead()){verified=hash.equals(digest(input));}
-+            catch(FileNotFoundException missing){}
-+            if(!verified){
-+                FileOutputStream output=null;
-+                try(InputStream input=context.getAssets().open(name)){
-+                    output=target.startWrite();MessageDigest sha=MessageDigest.getInstance("SHA-256");
-+                    byte[] b=new byte[65536];int n;
-+                    while((n=input.read(b))!=-1){output.write(b,0,n);sha.update(b,0,n);}
-+                    if(!hash.equals(hex(sha.digest())))throw new IOException("Asset fingerprint mismatch: "+name);
-+                    target.finishWrite(output);output=null;
-+                }finally{if(output!=null)target.failWrite(output);}
-+            }
-+            stamps.put(name,new JSONObject().put("sha256",hash).put("length",base.length()).put("modified",base.lastModified()));
-+            changed=true;
-+        }
-+        if(changed){
-+            FileOutputStream output=null;
-+            try{output=cache.startWrite();output.write(stamps.toString().getBytes(StandardCharsets.UTF_8));cache.finishWrite(output);output=null;}
-+            finally{if(output!=null)cache.failWrite(output);}
-+        }
-+    }
-+}
---- /dev/null
-+++ b/app/src/main/res/values-v31/styles.xml
-@@ -0,0 +1,5 @@
-+<resources><style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
-+<item name="android:windowBackground">@android:color/black</item>
-+<item name="android:colorBackground">@android:color/black</item>
-+<item name="android:windowSplashScreenBackground">@android:color/black</item>
-+</style></resources>
 --- a/app/src/main/res/values/strings.xml
 +++ b/app/src/main/res/values/strings.xml
 @@ -1 +1 @@
 -<resources><string name="app_name">Heroes Lore 5</string></resources>
 +<resources><string name="app_name">Heroes Lore 5 Target Test 8</string></resources>
---- /dev/null
-+++ b/app/src/main/res/values/styles.xml
-@@ -0,0 +1,5 @@
-+<resources><style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
-+<item name="android:windowBackground">@android:color/black</item>
-+<item name="android:colorBackground">@android:color/black</item>
-+
-+</style></resources>
