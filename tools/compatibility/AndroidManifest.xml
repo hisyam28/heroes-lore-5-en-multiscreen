@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="co.kr.eamobile.hl5.runner" android:versionCode="1010010"
+    android:versionName="01.01.00-test10-install">
+    <uses-sdk android:minSdkVersion="9" android:targetSdkVersion="36" />
+    <uses-feature android:glEsVersion="0x00010001" android:required="true" />
+    <supports-screens android:anyDensity="true" android:smallScreens="true"
+        android:normalScreens="true" android:largeScreens="true" android:xlargeScreens="true" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.VIBRATE" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.DEVICE_POWER" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.RESTART_PACKAGES" android:maxSdkVersion="20" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" android:maxSdkVersion="20" />
+    <application android:allowBackup="false" android:debuggable="true"
+        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+        android:extractNativeLibs="true" android:hasCode="true"
+        android:icon="@co.kr.eamobile.HeroesLore5:drawable/icon"
+        android:label="Heroes Lore 5 Target Test10">
+        <activity android:name=".CompatibilityActivity" android:exported="true"
+            android:screenOrientation="sensorLandscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".MainActivity" android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|density|uiMode" />
+        <activity android:name="co.kr.eamobile.HeroesLore5.HeroesLore5" android:exported="false"
+            android:launchMode="singleTop" android:screenOrientation="landscape"
+            android:configChanges="orientation|keyboardHidden" />
+        <activity android:name="co.kr.eamobile.MidasActivity" android:exported="false"
+            android:launchMode="singleTop" android:screenOrientation="landscape"
+            android:configChanges="orientation|keyboardHidden" />
+    </application>
+</manifest>

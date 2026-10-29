@@ -2,10 +2,56 @@
   "schema_version": 1,
   "project": "heroes-lore-5-en",
   "target_language": "en",
-  "status": "awaiting_target_apk",
+  "status": "v1_0_0_release_prepared_saved_quest_render_fixed",
+  "translation_status": "recognized_text_fields_translated_saved_quest_description_render_fix_verified_static_ARM",
+  "latest_install_report": {
+    "test9": "User reports install/update rejected on regular modern test phone; screenshots contain only App not installed, no PackageManager error code.",
+    "static_defect": "resources.arsc was DEFLATED while targetSDK36 requires it STORED and 4-byte aligned",
+    "test10": "User confirms installation on their Android phone succeeds; no new FPS, save or full gameplay evidence was provided."
+  },
   "baseline_policy": "Use the supplied target APK as immutable baseline.",
   "references": [
     "https://github.com/sanixmon/heroes-lore-5-en",
     "https://github.com/hisyam28/heroes-lore-3-en"
-  ]
+  ],
+  "primary_test_device": {
+    "android_version": "16",
+    "soc": "MediaTek Dimensity 9400+",
+    "model": null,
+    "device_tested": true,
+    "reported_result": "test10 install confirmed; test11 screenshots show running English gameplay with layout/quest issues. User requests additional performance work. Test12 device results pending."
+  },
+  "additional_test_devices": [
+    {
+      "model": "Samsung Galaxy A24",
+      "android_version": "16",
+      "soc": "MediaTek Helio G99",
+      "device_tested": true,
+      "reported_result": "Android16 user reports prior performance improvements but remaining delays. Test12 font/palette and English layout changes await physical testing."
+    }
+  ],
+  "display_objective": "Expand visible world/map area while preserving object proportions; no nonuniform stretch",
+  "legacy_android_objective": {
+    "requested_minimum": "Android 4; user also recalls the game running on Gingerbread",
+    "build_min_sdk": 9,
+    "legacy_path": "Original ARMv5TE native SO and original Java classes on API9-20; no CPU emulation",
+    "modern_path": "Optimized ARM32/ARM64 runner linked against API21+; isolated secondary DEX",
+    "legacy_device_tested": false,
+    "modern_test9_device_tested": false
+  },
+  "reference_role": "Reference for target-specific analysis; target APK engine and resources remain the baseline",
+  "localization": {
+    "runtime_baseline": "test10",
+    "english_build": "1.0.0",
+    "scope": "English VFS fields and source-verified short UI labels; separate display-only cached-text/word-wrap bridge and verified font/palette host helpers. Guest SO, DEX, input, artwork and gameplay metadata retained.",
+    "translated_slots": 13825,
+    "device_tested": false,
+    "test11_device_evidence": "User screenshots show English gameplay, overlapping stat labels, remaining Korean quest text, mixed menu capitalization and early dialogue wrapping.",
+    "test12_device_tested": true,
+    "existing_english_ui_labels_corrected": 72,
+    "test12_device_evidence": "User reports remaining old-save quest description Korean while other parts are satisfactory; screenshot shows English quest title/category/location and Korean description.",
+    "final_build_device_tested": false,
+    "saved_quest_fix": "Handle verified BFont::DrawTextLine before slicing; no save or quest-state writes"
+  },
+  "repository": "https://github.com/hisyam28/heroes-lore-5-en-multiscreen"
 }

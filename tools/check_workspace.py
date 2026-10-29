@@ -14,7 +14,7 @@ ROOT_FILES = {'README.md', 'CREDITS.md', 'AGENTS.md', '.gitignore', '.gitattribu
 
 
 def public_files():
-    proc = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, capture_output=True)
+    proc = subprocess.run(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], cwd=ROOT, capture_output=True)
     if proc.returncode == 0 and proc.stdout:
         return [ROOT / name.decode('utf-8') for name in proc.stdout.split(b'\0') if name]
     return [p for p in ROOT.rglob('*') if p.is_file() and

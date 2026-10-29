@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "runtime_baseline_sha256": "45243f4268f50dd30478d0439ea7345ecb7b9528a5e333fa11e8672fe7804e79",
+  "runtime_baseline_version_code": 1010010,
+  "english_version_code": 1010100,
+  "input_vfs_sha256": "0b60afce3d32bfe68419befad327f2e179752dc874db711a876b0c2bf7bdec38",
+  "english_vfs_sha256": "d103c231caf3b5c82f155f5dd66e269bea6d7cfae9d156eb817209eeed1b4af8",
+  "input_entry_count": 2205,
+  "input_manifest_index_verified": 2187,
+  "font": {
+    "asset": "c/font/eng.fnt",
+    "sha256": "ba9597f95d3ceca04e498faa056b01892857ce8355ef707091d818ed7ef4c6ef",
+    "ascii_width": 5,
+    "ascii_height": 11,
+    "ascii_advance": 6,
+    "hangul_advance": 10,
+    "escape_table_hex": "267c247b7d2722605e3c5b",
+    "font_code_unchanged": false,
+    "line_spacing": "Original caller parameters unchanged",
+    "get_printable_bytes_symbol_sha256": "095762e50366bc47536898b55a160358aac3699df09592e4e97dcb54c2268831",
+    "font_asset_unchanged": true,
+    "host_metrics": "Byte-equivalent helper checked against target ARM for 900 width/line comparisons",
+    "dialogue_wrap": "Native box width with display-only space-to-semicolon word wrap; explicit paragraphs preserved"
+  },
+  "coverage": {
+    "dat_files_verified": 57,
+    "text_slots_scanned": 15235,
+    "non_korean_slots_preserved": 1338,
+    "korean_slots_translated": 13825,
+    "existing_ui_labels_corrected": 72,
+    "scn_files_verified": 258
+  },
+  "physical_device_tested": false,
+  "test11_device_tested": true,
+  "test12_physical_device_tested": false,
+  "render_dictionary": {
+    "entries": 3620,
+    "ambiguous_entries_excluded": 0,
+    "save_files_modified": false
+  },
+  "english_version_name": "1.0.0",
+  "saved_quest_description_fix": {
+    "symbol": "_ZN5BFont12DrawTextLineEiiiiiPcii",
+    "pointer_argument": 6,
+    "width_argument": 4,
+    "quest_call_address": "0xce3e8",
+    "save_bytes_modified": false,
+    "regression": "Actual target ARM quest + pagination at two scroll offsets"
+  }
+}

@@ -1,0 +1,2100 @@
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1,23 +1,28 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+     package="co.kr.eamobile.hl5.runner"
+-    android:versionCode="3"
+-    android:versionName="1.3.0">
++    android:versionCode="1010008"
++    android:versionName="01.01.00-test8-stability">
+ 
+     <uses-sdk
+         android:minSdkVersion="26"
+-        android:targetSdkVersion="34" />
++        android:targetSdkVersion="36" />
++
++    <uses-feature android:glEsVersion="0x00010001" android:required="true" />
+ 
+     <application
+-        android:allowBackup="true"
++        android:allowBackup="false"
++        android:theme="@style/AppTheme"
++        android:debuggable="true"
++        android:extractNativeLibs="false"
+         android:icon="@drawable/icon"
+         android:label="@string/app_name"
+         android:hasCode="true">
+         <activity
+             android:name=".MainActivity"
+             android:exported="true"
+-            android:configChanges="orientation|keyboardHidden|screenSize"
+-            android:screenOrientation="landscape">
++            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|density|uiMode"
++            android:screenOrientation="sensorLandscape">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+--- a/app/src/main/cpp/arm32_elf_loader.cpp
++++ b/app/src/main/cpp/arm32_elf_loader.cpp
+@@ -1,5 +1,8 @@
+ #include "arm32_elf_loader.h"
+ #include "arm32_native_engine.h"
++#include "arm32_relocations.h"
++#include <sstream>
++#include <unordered_set>
+ #include <elf.h>
+ #include <fstream>
+ #include <cstring>
+@@ -19,26 +22,34 @@
+ bool Arm32ElfLoader::load_so(const std::string& filepath, Arm32NativeEngine& engine, uint32_t base_addr) {
+     base_addr_ = base_addr;
+     symbols_.clear();
++    last_error_.clear();
++    auto fail = [this](const std::string& message) {
++        last_error_ = message;
++        std::cerr << "[ElfLoader] " << message << std::endl;
++        return false;
++    };
++    std::unordered_set<std::string> supplied_hooks;
++    for (const auto& hook : engine.host_hooks_) supplied_hooks.insert(hook.first);
+ 
+     std::ifstream file(filepath, std::ios::binary);
+     if (!file.is_open()) {
+         std::cerr << "[ElfLoader] Cannot open file: " << filepath << std::endl;
+-        return false;
++        return fail("Cannot open target guest ELF");
+     }
+ 
+     // 1. Read ELF Header
+     Elf32_Ehdr ehdr;
+     file.read(reinterpret_cast<char*>(&ehdr), sizeof(ehdr));
+-    if (file.gcount() != sizeof(ehdr)) return false;
++    if (file.gcount() != sizeof(ehdr)) return fail("Truncated ELF header");
+ 
+     if (ehdr.e_ident[EI_MAG0] != ELFMAG0 || ehdr.e_ident[EI_MAG1] != ELFMAG1 ||
+         ehdr.e_ident[EI_MAG2] != ELFMAG2 || ehdr.e_ident[EI_MAG3] != ELFMAG3) {
+         std::cerr << "[ElfLoader] Invalid ELF magic" << std::endl;
+-        return false;
++        return fail("Invalid ELF magic");
+     }
+     if (ehdr.e_ident[EI_CLASS] != ELFCLASS32 || ehdr.e_machine != EM_ARM) {
+         std::cerr << "[ElfLoader] Not 32-bit ARM ELF" << std::endl;
+-        return false;
++        return fail("Guest must be an ARM32 ELF");
+     }
+ 
+     // 2. Read Program Headers
+@@ -59,7 +70,7 @@
+     total_size_ = align_up(max_vaddr - min_vaddr, 4096);
+     if (!engine.map_memory(base_addr_, total_size_, UC_PROT_ALL)) {
+         std::cerr << "[ElfLoader] Failed to map memory for ELF segments" << std::endl;
+-        return false;
++        return fail("Unicorn could not map ELF load segments");
+     }
+ 
+     // 3. Load PT_LOAD Segments into Guest Memory
+@@ -117,7 +128,7 @@
+     for (const auto& sym : dynsyms) {
+         if (sym.st_name < dynstr.size()) {
+             const char* name = &dynstr[sym.st_name];
+-            if (name && name[0] != '\0') {
++            if (name && name[0] != '\0' && sym.st_shndx != SHN_UNDEF) {
+                 symbols_[name] = SymbolInfo{name, base_addr_ + sym.st_value, sym.st_size};
+             }
+         }
+@@ -144,6 +155,30 @@
+             engine.read_memory(base_addr_ + rel.r_offset, &val, sizeof(val));
+             val += base_addr_;
+             engine.write_memory(base_addr_ + rel.r_offset, &val, sizeof(val));
++        } else if (type == R_ARM_ABS32 && sym_idx < dynsyms.size()) {
++            const auto& sym = dynsyms[sym_idx];
++            if (sym.st_name >= dynstr.size()) return fail("ABS32 symbol name is out of range");
++            const char* name = &dynstr[sym.st_name];
++            Arm32RelocationSymbol target;
++            target.value = sym.st_value;
++            target.defined = sym.st_shndx != SHN_UNDEF;
++            target.absolute = sym.st_shndx == SHN_ABS;
++            target.weak = ELF32_ST_BIND(sym.st_info) == STB_WEAK;
++            target.null_entry = sym_idx == 0;
++            target.function = ELF32_ST_TYPE(sym.st_info) == STT_FUNC;
++            target.host_resolved = supplied_hooks.count(name) != 0;
++            if (target.host_resolved) target.host_address = engine.get_or_create_hook(name);
++            uint32_t addend = 0, value = 0;
++            if (!engine.read_memory(base_addr_ + rel.r_offset, &addend, 4))
++                return fail("Cannot read ABS32 addend");
++            if (!resolve_arm_abs32(target, base_addr_, addend, value)) {
++                std::ostringstream reason;
++                reason << "Unresolved strong ABS32 symbol " << name
++                       << " at 0x" << std::hex << rel.r_offset;
++                return fail(reason.str());
++            }
++            if (!engine.write_memory(base_addr_ + rel.r_offset, &value, 4))
++                return fail("Cannot write resolved ABS32 value");
+         } else if (type == R_ARM_GLOB_DAT && sym_idx < dynsyms.size()) {
+             const char* sym_name = &dynstr[dynsyms[sym_idx].st_name];
+             if (strcmp(sym_name, "__stack_chk_guard") == 0) {
+--- a/app/src/main/cpp/arm32_elf_loader.h
++++ b/app/src/main/cpp/arm32_elf_loader.h
+@@ -34,8 +34,10 @@
+ 
+     uint32_t base_addr() const { return base_addr_; }
+     size_t total_size() const { return total_size_; }
++    const std::string& last_error() const { return last_error_; }
+ 
+ private:
++    std::string last_error_;
+     uint32_t base_addr_;
+     size_t total_size_;
+     std::unordered_map<std::string, SymbolInfo> symbols_;
+--- a/app/src/main/cpp/arm32_native_engine.cpp
++++ b/app/src/main/cpp/arm32_native_engine.cpp
+@@ -1,6 +1,7 @@
+ #include "arm32_native_engine.h"
+ #include <unicorn/arm.h>
+ #include <cstring>
++#include <algorithm>
+ #include <iostream>
+ #include <stdexcept>
+ #include <cmath>
+@@ -42,11 +43,21 @@
+ 
+ bool Arm32NativeEngine::initialize() {
+     close();
++    heap_curr_ = NATIVE_HEAP_BASE;
++    try { heap_.reset(new GuestHeap<>()); } catch (...) { return false; }
++    heap_->reset(NATIVE_HEAP_BASE, 16 * 1024 * 1024);
++    errno_address_ = 0;
++    pending_error_[0] = 0;
++    next_trampoline_addr_ = NATIVE_TRAMPOLINE_BASE;
++    trampoline_map_.clear();
++    host_hooks_.clear();
+     uc_err err = uc_open(UC_ARCH_ARM, UC_MODE_ARM, &uc_);
+     if (err != UC_ERR_OK) {
+         return false;
+     }
+ 
++    // Bound the host translation cache before Unicorn lazily initializes it.
++    uc_ctl_set_tcg_buffer_size(uc_,static_cast<uint32_t>((sizeof(void*)==8 ? 64 : 32)*1024*1024));
+     // 1. Map Stack: 0x70000000 .. 0x70020000
+     if (!map_memory(NATIVE_STACK_BASE, NATIVE_STACK_SIZE, UC_PROT_READ | UC_PROT_WRITE)) {
+         return false;
+@@ -122,10 +133,39 @@
+ }
+ 
+ uint32_t Arm32NativeEngine::allocate_heap(size_t size, size_t alignment) {
+-    size_t aligned_sz = (size + alignment - 1) & ~(alignment - 1);
+-    uint32_t ptr = heap_curr_;
+-    heap_curr_ += aligned_sz;
+-    return ptr;
++    if (!heap_ || size > 16 * 1024 * 1024 || alignment > 0xffffffffu)
++        throw std::runtime_error("Invalid guest allocation");
++    uint32_t pointer = heap_->allocate(static_cast<uint32_t>(size),static_cast<uint32_t>(alignment));
++    if (!pointer) {
++        char message[200];
++        snprintf(message,sizeof(message),"Guest heap exhausted: request=%u used=%u free=%u largest=%u",
++            static_cast<unsigned>(size),heap_->in_use(),heap_->available(),heap_->largest_free());
++        throw std::runtime_error(message);
++    }
++    heap_curr_ = std::max(heap_curr_,pointer+static_cast<uint32_t>(size));
++    return pointer;
++}
++void Arm32NativeEngine::free_heap(uint32_t pointer) {
++    if (pointer && (!heap_ || !heap_->release(pointer)))
++        throw std::runtime_error("Invalid or repeated guest free");
++}
++uint32_t Arm32NativeEngine::reallocate_heap(uint32_t pointer,uint32_t size) {
++    if (!pointer) return allocate_heap(size);
++    if (!size) { free_heap(pointer); return 0; }
++    if (!heap_ || !heap_->owns(pointer)) throw std::runtime_error("Invalid guest realloc");
++    uint32_t old_size=heap_->requested_size(pointer);
++    if (heap_->resize_in_place(pointer,size)) return pointer;
++    uint32_t replacement=allocate_heap(size);
++    std::vector<uint8_t> copy(std::min(old_size,size));
++    if (!read_memory(pointer,copy.data(),copy.size()) || !write_memory(replacement,copy.data(),copy.size())) {
++        free_heap(replacement); throw std::runtime_error("Guest realloc copy failed");
++    }
++    free_heap(pointer); return replacement;
++}
++void Arm32NativeEngine::abort_execution(const char* message) {
++    std::strncpy(pending_error_,message ? message : "Guest callback failed",sizeof(pending_error_)-1);
++    pending_error_[sizeof(pending_error_)-1] = 0;
++    if (uc_) uc_emu_stop(uc_);
+ }
+ 
+ uint32_t Arm32NativeEngine::write_string(const std::string& str) {
+@@ -186,6 +226,9 @@
+         return dst;
+     });
+ 
++    // Target imports memmove; the temporary-buffer memcpy hook supports overlap.
++    register_host_hook("memmove", host_hooks_.at("memcpy"));
++
+     register_host_hook("memset", [this](const std::vector<uint32_t>& args) -> uint32_t {
+         uint32_t dst = args[0], val = args[1] & 0xFF, n = args[2];
+         if (n > 0) {
+@@ -210,14 +253,19 @@
+     });
+ 
+     register_host_hook("calloc", [this](const std::vector<uint32_t>& args) -> uint32_t {
+-        size_t total = args[0] * args[1];
++        uint64_t wide_total=uint64_t(args[0])*args[1];
++        if (wide_total>16*1024*1024) throw std::runtime_error("Guest calloc overflow or capacity exceeded");
++        uint32_t total=static_cast<uint32_t>(wide_total);
+         uint32_t ptr = allocate_heap(total, 8);
+         std::vector<uint8_t> zero(total, 0);
+         write_memory(ptr, zero.data(), total);
+         return ptr;
+     });
+-    register_host_hook("free", [](const std::vector<uint32_t>&) -> uint32_t {
+-        return 0;
++    register_host_hook("free", [this](const std::vector<uint32_t>& args) -> uint32_t {
++        free_heap(args[0]); return 0;
++    });
++    register_host_hook("realloc", [this](const std::vector<uint32_t>& args) -> uint32_t {
++        return reallocate_heap(args[0],args[1]);
+     });
+ 
+     register_host_hook("strcpy", [this](const std::vector<uint32_t>& args) -> uint32_t {
+@@ -389,7 +437,7 @@
+ 
+     register_host_hook("__errno", [this](const std::vector<uint32_t>&) -> uint32_t {
+         // Return a stable guest address for errno (4 bytes, always 0)
+-        static uint32_t errno_addr = 0;
++        uint32_t& errno_addr=errno_address_;
+         if (errno_addr == 0) {
+             errno_addr = allocate_heap(4, 4);
+             uint32_t zero = 0;
+@@ -612,20 +660,20 @@
+ 
+ void Arm32NativeEngine::on_code_hook(uc_engine* uc, uint64_t address, uint32_t /*size*/, void* user_data) {
+     auto* self = static_cast<Arm32NativeEngine*>(user_data);
++    try {
+     auto it = self->trampoline_map_.find(static_cast<uint32_t>(address));
+     if (it == self->trampoline_map_.end()) {
+         return;
+     }
+ 
+-    uint32_t r0 = 0, r1 = 0, r2 = 0, r3 = 0, lr = 0, sp = 0;
+-    uc_reg_read(uc, UC_ARM_REG_R0, &r0);
+-    uc_reg_read(uc, UC_ARM_REG_R1, &r1);
+-    uc_reg_read(uc, UC_ARM_REG_R2, &r2);
+-    uc_reg_read(uc, UC_ARM_REG_R3, &r3);
+-    uc_reg_read(uc, UC_ARM_REG_LR, &lr);
+-    uc_reg_read(uc, UC_ARM_REG_SP, &sp);
+-
+-    std::vector<uint32_t> args = {r0, r1, r2, r3};
++    uint32_t lr = 0, sp = 0;
++    std::vector<uint32_t> args;
++    args.reserve(12);
++    args.resize(4);
++    int registers[] = {UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2,
++                       UC_ARM_REG_R3, UC_ARM_REG_LR, UC_ARM_REG_SP};
++    void* values[] = {&args[0], &args[1], &args[2], &args[3], &lr, &sp};
++    uc_reg_read_batch(uc, registers, values, 6);
+     if (sp >= NATIVE_STACK_BASE && sp <= (NATIVE_STACK_BASE + NATIVE_STACK_SIZE - 32)) {
+         uint32_t stack_words[8] = {0};
+         if (self->read_memory(sp, stack_words, sizeof(stack_words))) {
+@@ -642,6 +690,8 @@
+     }
+     uc_reg_write(uc, UC_ARM_REG_R0, &ret_val);
+     uc_reg_write(uc, UC_ARM_REG_PC, &lr);
++    } catch (const std::exception& error) { self->abort_execution(error.what()); }
++      catch (...) { self->abort_execution("Unknown host callback failure"); }
+ }
+ 
+ void Arm32NativeEngine::on_exit_hook(uc_engine* uc, uint64_t /*address*/, uint32_t /*size*/, void* /*user_data*/) {
+@@ -649,6 +699,7 @@
+ }
+ 
+ uint32_t Arm32NativeEngine::call_function(uint32_t target_vaddr, const std::vector<uint32_t>& args, uint64_t timeout_us) {
++    pending_error_[0] = 0;
+     // 1. Set CPSR to user mode (0x10) so banked SP/LR are active
+     uint32_t cpsr = 0x10;
+     uc_reg_write(uc_, UC_ARM_REG_CPSR, &cpsr);
+@@ -677,11 +728,15 @@
+ 
+     // 5. Start emulation
+     uc_err err = uc_emu_start(uc_, target_vaddr, 0, timeout_us, 0);
+-    if (err != UC_ERR_OK) {
++    if (pending_error_[0]) throw std::runtime_error(pending_error_);
++    size_t timed_out = 0;
++    uc_query(uc_, UC_QUERY_TIMEOUT, &timed_out);
++    if (err != UC_ERR_OK || timed_out) {
+         uint32_t pc = 0;
+         uc_reg_read(uc_, UC_ARM_REG_PC, &pc);
+         char err_msg[256];
+-        snprintf(err_msg, sizeof(err_msg), "Execution failed at PC=0x%08x: %s", pc, uc_strerror(err));
++        snprintf(err_msg, sizeof(err_msg), "Execution failed at PC=0x%08x: %s", pc,
++                 timed_out ? "guest call timeout" : uc_strerror(err));
+         throw std::runtime_error(err_msg);
+     }
+ 
+--- a/app/src/main/cpp/arm32_native_engine.h
++++ b/app/src/main/cpp/arm32_native_engine.h
+@@ -8,6 +8,7 @@
+ #include <unordered_map>
+ #include <functional>
+ #include <memory>
++#include "guest_heap.h"
+ #include <unicorn/unicorn.h>
+ 
+ namespace hl5 {
+@@ -35,6 +36,12 @@
+     bool write_memory(uint32_t guest_addr, const void* data, size_t size);
+     bool read_memory(uint32_t guest_addr, void* out_data, size_t size);
+     uint32_t allocate_heap(size_t size, size_t alignment = 8);
++    void free_heap(uint32_t address);
++    uint32_t reallocate_heap(uint32_t address, uint32_t size);
++    void abort_execution(const char* message);
++    std::unique_ptr<GuestHeap<>> heap_;
++    uint32_t errno_address_ = 0;
++    char pending_error_[256] = {};
+     uint32_t write_string(const std::string& str);
+     std::string read_string(uint32_t guest_addr, size_t max_len = 4096);
+     // Host hooks & trampolines
+--- a/app/src/main/cpp/gles_bridge.cpp
++++ b/app/src/main/cpp/gles_bridge.cpp
+@@ -1,4 +1,6 @@
+ #include "gles_bridge.h"
++#include "texture_layout.h"
++#include <stdexcept>
+ #include "arm32_native_engine.h"
+ #include <dlfcn.h>
+ #include <cstdio>
+@@ -109,6 +111,13 @@
+ 
+     #undef RESOLVE_GL
+ 
++    p_glGetError = reinterpret_cast<uint32_t (*)()>(dlsym(lib_handle_, "glGetError"));
++    p_glGetString = reinterpret_cast<const unsigned char* (*)(uint32_t)>(dlsym(lib_handle_, "glGetString"));
++    if (!p_glGetError || !p_glGetString || !p_glGetString(0x1f02)) {
++        provider_name_ = "No active GLES 1.1 context";
++        gles1_supported_ = false;
++        return false;
++    }
+     gles1_supported_ = true;
+     return true;
+ }
+@@ -271,21 +280,13 @@
+         float zNear  = (args.size() > 4) ? unpack_float(args[4]) : -1.0f;
+         float zFar   = (args.size() > 5) ? unpack_float(args[5]) :  1.0f;
+ 
+-        // Fullscreen Quad Projection:
+-        // Texture2D's quad vertices are permanently set to 800.0f x 480.0f (or 400.0f x 240.0f).
+-        // If the orthographic projection is set to physical surface dimensions (e.g. 1931 x 681),
+-        // the quad renders as a small rectangle trapped in the bottom-left corner.
+-        // Lock orthographic projection bounds to match the quad's coordinate space (0..800 x 0..480)
+-        // so that the GPU hardware scales the quad to fill 100% of the active fullscreen viewport.
+-        float target_right = (right > 400.0f) ? 800.0f : 400.0f;
+-        float target_top   = (top > 240.0f) ? 480.0f : 240.0f;
+-
+-        diag_.last_ortho_left = 0.0f;
+-        diag_.last_ortho_right = target_right;
+-        diag_.last_ortho_bottom = 0.0f;
+-        diag_.last_ortho_top = target_top;
+-
+-        if (p_glOrthof) p_glOrthof(0.0f, target_right, 0.0f, target_top, zNear, zFar);
++        // The target creates its quad from nativeInitDisplay dimensions.
++        // Preserve its projection so the wider framebuffer remains proportional.
++        diag_.last_ortho_left = left;
++        diag_.last_ortho_right = right;
++        diag_.last_ortho_bottom = bottom;
++        diag_.last_ortho_top = top;
++        if (p_glOrthof) p_glOrthof(left, right, bottom, top, zNear, zFar);
+         return 0;
+     });
+ 
+@@ -345,6 +346,7 @@
+         apply_active_viewport();
+         if (p_glDrawArrays) {
+             p_glDrawArrays(mode, first, count);
++            if (diagnostics_enabled_ && p_glGetError) { uint32_t error = p_glGetError(); if (error) diag_.last_gl_error = error; }
+         }
+         return 0;
+     });
+@@ -362,16 +364,18 @@
+         uint32_t guest_pixels = (args.size() > 8) ? args[8] : 0;
+ 
+         const void* host_pixels = nullptr;
+-        std::vector<uint8_t> pixel_buf;
+         if (guest_pixels >= 0x10000 && width > 0 && height > 0) {
+-            size_t pixel_bytes = width * height * 4; // Assuming RGBA
+-            pixel_buf.resize(pixel_bytes);
+-            engine_->read_memory(guest_pixels, pixel_buf.data(), pixel_bytes);
+-            host_pixels = pixel_buf.data();
++            size_t pixel_bytes = texture_upload_bytes(width, height, format, type);
++            if (!pixel_bytes) throw std::runtime_error("Unsupported or oversized texture upload");
++            texture_upload_buffer_.resize(pixel_bytes);
++            if (!engine_->read_memory(guest_pixels, texture_upload_buffer_.data(), pixel_bytes))
++                throw std::runtime_error("Texture upload reads outside guest memory");
++            host_pixels = texture_upload_buffer_.data();
+         }
+ 
+         if (p_glTexImage2D) {
+             p_glTexImage2D(target, level, internalformat, width, height, border, format, type, host_pixels);
++            if (diagnostics_enabled_ && p_glGetError) { uint32_t error = p_glGetError(); if (error) diag_.last_gl_error = error; }
+         }
+         return 0;
+     });
+@@ -389,16 +393,18 @@
+         uint32_t guest_pixels = (args.size() > 8) ? args[8] : 0;
+ 
+         const void* host_pixels = nullptr;
+-        std::vector<uint8_t> pixel_buf;
+         if (guest_pixels >= 0x10000 && width > 0 && height > 0) {
+-            size_t pixel_bytes = width * height * 4;
+-            pixel_buf.resize(pixel_bytes);
+-            engine_->read_memory(guest_pixels, pixel_buf.data(), pixel_bytes);
+-            host_pixels = pixel_buf.data();
++            size_t pixel_bytes = texture_upload_bytes(width, height, format, type);
++            if (!pixel_bytes) throw std::runtime_error("Unsupported or oversized texture upload");
++            texture_upload_buffer_.resize(pixel_bytes);
++            if (!engine_->read_memory(guest_pixels, texture_upload_buffer_.data(), pixel_bytes))
++                throw std::runtime_error("Texture upload reads outside guest memory");
++            host_pixels = texture_upload_buffer_.data();
+         }
+ 
+         if (p_glTexSubImage2D) {
+             p_glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, host_pixels);
++            if (diagnostics_enabled_ && p_glGetError) { uint32_t error = p_glGetError(); if (error) diag_.last_gl_error = error; }
+         }
+         return 0;
+     });
+--- a/app/src/main/cpp/gles_bridge.h
++++ b/app/src/main/cpp/gles_bridge.h
+@@ -7,6 +7,7 @@
+ #include <string>
+ #include <vector>
+ #include <cstring>
++#include "display_geometry.h"
+ 
+ namespace hl5 {
+ 
+@@ -37,6 +38,7 @@
+ 
+ struct GlesDiagnostics {
+     uint32_t total_calls = 0;
++    uint32_t last_gl_error = 0;
+     uint32_t draw_arrays_calls = 0;
+     uint32_t bind_texture_calls = 0;
+     uint32_t gen_textures_calls = 0;
+@@ -82,43 +84,22 @@
+     int32_t surface_width() const { return surface_w_; }
+     int32_t surface_height() const { return surface_h_; }
+ 
+-    void set_stretch_mode(bool stretch) {
+-        stretch_mode_ = stretch;
++    void set_logical_size(int32_t width, int32_t height) {
++        logical_w_ = width;
++        logical_h_ = height;
+         apply_active_viewport();
+     }
+-    bool stretch_mode() const { return stretch_mode_; }
+-
+-    void get_active_viewport(int32_t& out_x, int32_t& out_y, int32_t& out_w, int32_t& out_h) const {
+-        if (surface_w_ <= 0 || surface_h_ <= 0) {
+-            out_x = 0;
+-            out_y = 0;
+-            out_w = (diag_.viewport_w > 0) ? diag_.viewport_w : 400;
+-            out_h = (diag_.viewport_h > 0) ? diag_.viewport_h : 240;
+-            return;
+-        }
+-        if (stretch_mode_) {
+-            out_x = 0;
+-            out_y = 0;
+-            out_w = surface_w_;
+-            out_h = surface_h_;
+-            return;
+-        }
+-        // Original 5:3 (400:240) aspect ratio centered (pillarbox/letterbox)
+-        if (surface_w_ * 3 > surface_h_ * 5) {
+-            out_h = surface_h_;
+-            out_w = (surface_h_ * 5) / 3;
+-            out_x = (surface_w_ - out_w) / 2;
+-            out_y = 0;
+-        } else {
+-            out_w = surface_w_;
+-            out_h = (surface_w_ * 3) / 5;
+-            out_x = 0;
+-            out_y = (surface_h_ - out_h) / 2;
+-        }
++    bool has_current_context() const {
++        return p_glGetString && p_glGetString(0x1F02) != nullptr; // GL_VERSION
++    }
++    void get_active_viewport(int32_t& x, int32_t& y, int32_t& width, int32_t& height) const {
++        auto view = cover_display(surface_w_, surface_h_, logical_w_, logical_h_);
++        x = view.x; y = view.y; width = view.width; height = view.height;
+     }
+ 
+     void apply_active_viewport();
+     void clear_screen();
++    void set_diagnostics_enabled(bool enabled) { diagnostics_enabled_ = enabled; }
+ 
+     static inline float unpack_float(uint32_t u) {
+         float f;
+@@ -135,7 +116,11 @@
+     int32_t surface_w_ = 0;
+     int32_t surface_h_ = 0;
+ 
+-    bool stretch_mode_ = false; // Default: false (5:3 Original Aspect Ratio Centered)
++    int32_t logical_w_ = 400, logical_h_ = 240;
++    bool diagnostics_enabled_ = false;
++    std::vector<uint8_t> texture_upload_buffer_;
++    uint32_t (*p_glGetError)() = nullptr;
++    const unsigned char* (*p_glGetString)(uint32_t) = nullptr;
+     PFN_glClear              p_glClear = nullptr;
+     PFN_glClearColor         p_glClearColor = nullptr;
+     // Host GLES 1.1 Function Pointers
+--- a/app/src/main/cpp/hl5_save_trace.h
++++ b/app/src/main/cpp/hl5_save_trace.h
+@@ -45,7 +45,7 @@
+ }
+ 
+ // ---- Read-only guest tracepoints -------------------------------------------
+-// Link-time guest addresses (runtime = loader base + link). Deltas below were
++// Historical reference addresses below are NOT used for this target. They were
+ // verified against apktool_modern/lib/armeabi/libHeroesLore5.so disassembly:
+ //   LoadLocalSaveData entry 0x77f94, exit 0x7807c, fallback-init call 0x78088,
+ //     gv+0x29 branch check 0x78054
+@@ -177,37 +177,37 @@
+     uint32_t load_local = sym("_ZN8CommonUi17LoadLocalSaveDataEv");
+     if (load_local != 0) {
+         Hl5SaveTrace_Add(eng, load_local, Hl5Tag_LoadLocalEnter);
+-        Hl5SaveTrace_Add(eng, load_local + 0xE8, Hl5Tag_LoadLocalExit);
+-        Hl5SaveTrace_Add(eng, load_local + 0xF4, Hl5Tag_LoadLocalFallback);
+-        Hl5SaveTrace_Add(eng, load_local + 0xC0, Hl5Tag_LoadLocalBranch);
++
++
++
+     } else {
+         HL5_SAVE_LOG("tracepoint group LoadLocalSaveData skipped (symbol missing)");
+     }
+     uint32_t save_slot = sym("_ZN8SlotInfo12SaveSlotDataEa");
+     if (save_slot != 0) {
+         Hl5SaveTrace_Add(eng, save_slot, Hl5Tag_SaveSlotEnter);
+-        Hl5SaveTrace_Add(eng, save_slot + 0x808, Hl5Tag_SaveSlotExit);
++
+     } else {
+         HL5_SAVE_LOG("tracepoint group SaveSlotData skipped (symbol missing)");
+     }
+     uint32_t load_slot = sym("_ZN8SlotInfo12LoadSlotDataEa");
+     if (load_slot != 0) {
+         Hl5SaveTrace_Add(eng, load_slot, Hl5Tag_LoadSlotEnter);
+-        Hl5SaveTrace_Add(eng, load_slot + 0x3B4, Hl5Tag_LoadSlotExit);
++
+     } else {
+         HL5_SAVE_LOG("tracepoint group LoadSlotData skipped (symbol missing)");
+     }
+     uint32_t get_size = sym("MX_sdGetSize");
+     if (get_size != 0) {
+         Hl5SaveTrace_Add(eng, get_size, Hl5Tag_SdGetSizeEnter);
+-        Hl5SaveTrace_Add(eng, get_size + 0x40, Hl5Tag_SdGetSizeExit);
++
+     } else {
+         HL5_SAVE_LOG("tracepoint group MX_sdGetSize skipped (symbol missing)");
+     }
+     uint32_t sd_save = sym("MX_sdSaveData");
+     if (sd_save != 0) {
+         Hl5SaveTrace_Add(eng, sd_save, Hl5Tag_SdSaveEnter);
+-        Hl5SaveTrace_Add(eng, sd_save + 0xB0, Hl5Tag_SdSaveExit);
++
+     } else {
+         HL5_SAVE_LOG("tracepoint group MX_sdSaveData skipped (symbol missing)");
+     }
+--- a/app/src/main/cpp/jni_bridge_core.cpp
++++ b/app/src/main/cpp/jni_bridge_core.cpp
+@@ -6,6 +6,11 @@
+ #include <cstdio>
+ 
+ namespace hl5 {
++
++static size_t host_page_size() {
++    const long page = sysconf(_SC_PAGESIZE);
++    return page > 0 ? static_cast<size_t>(page) : 4096;
++}
+ 
+ TypedHandleTable::TypedHandleTable() : next_id_(100) {
+     local_frames_.emplace_back();
+@@ -105,7 +110,8 @@
+ }
+ 
+ bool GuestAddressSpace::initialize(size_t guest_size) {
+-    total_size_ = (guest_size + 4095) & ~4095;
++    const size_t page = host_page_size();
++    total_size_ = (guest_size + page - 1) & ~(page - 1);
+     // Map initial guest virtual address space.
+     // On 64-bit Linux / Android, reserve address space without MAP_FIXED
+     host_mapping_ = mmap(reinterpret_cast<void*>(static_cast<uintptr_t>(base_vaddr_)),
+@@ -125,16 +131,25 @@
+ }
+ 
+ uint32_t GuestAddressSpace::allocate_guest(size_t size, size_t alignment) {
++    const size_t page = host_page_size();
++    if (alignment == 0 || (alignment & (alignment - 1)) != 0) return 0;
++    if (alignment < page) alignment = page;
++    const size_t aligned_offset = (current_offset_ + alignment - 1) & ~(alignment - 1);
++    if (aligned_offset > total_size_ || size > total_size_ - aligned_offset) return 0;
+     size_t aligned_size = (size + alignment - 1) & ~(alignment - 1);
+-    if (current_offset_ + aligned_size > total_size_) {
++    if (aligned_size > total_size_ - aligned_offset) {
+         return 0; // Out of guest memory
+     }
+-    uint32_t vaddr = base_vaddr_ + static_cast<uint32_t>(current_offset_);
+-    current_offset_ += aligned_size;
++    uint32_t vaddr = base_vaddr_ + static_cast<uint32_t>(aligned_offset);
++    current_offset_ = aligned_offset + aligned_size;
+     return vaddr;
+ }
+ 
+ bool GuestAddressSpace::make_executable(uint32_t guest_vaddr, size_t size) {
++    if (!validate_guest_ptr(guest_vaddr, size)) return false;
++    const size_t page = host_page_size();
++    if ((guest_vaddr - base_vaddr_) % page != 0) return false;
++    size = (size + page - 1) & ~(page - 1);
+     void* host_ptr = to_host_ptr(guest_vaddr);
+     if (!host_ptr) return false;
+     // Strict W^X compliance: remove PROT_WRITE when applying PROT_EXEC
+@@ -148,6 +163,10 @@
+ }
+ 
+ bool GuestAddressSpace::make_writable(uint32_t guest_vaddr, size_t size) {
++    if (!validate_guest_ptr(guest_vaddr, size)) return false;
++    const size_t page = host_page_size();
++    if ((guest_vaddr - base_vaddr_) % page != 0) return false;
++    size = (size + page - 1) & ~(page - 1);
+     void* host_ptr = to_host_ptr(guest_vaddr);
+     if (!host_ptr) return false;
+     // Remove PROT_EXEC when making writable
+@@ -157,7 +176,7 @@
+ bool GuestAddressSpace::validate_guest_ptr(uint32_t guest_vaddr, size_t size) const {
+     if (guest_vaddr < base_vaddr_) return false;
+     uint32_t offset = guest_vaddr - base_vaddr_;
+-    return (offset + size) <= total_size_;
++    return offset <= total_size_ && size <= total_size_ - offset;
+ }
+ 
+ void* GuestAddressSpace::to_host_ptr(uint32_t guest_vaddr) const {
+--- a/app/src/main/cpp/native_runner.cpp
++++ b/app/src/main/cpp/native_runner.cpp
+@@ -1,6 +1,7 @@
+ #include <jni.h>
+ #include <string>
+ #include <sstream>
++#include <stdexcept>
+ #include "jni_bridge_core.h"
+ #include "gles_bridge.h"
+ #include "vfs_adapter.h"
+@@ -8,6 +9,14 @@
+ #include "arm32_elf_loader.h"
+ #include <unicorn/arm.h>
+ #include "hl5_save_trace.h"
++#include "target_profile.h"
++#include "display_geometry.h"
++#include "framebuffer_copy.h"
++#include "raster_rgb565.h"
++#include "font_metrics.h"
++#include "render_text_data.h"
++#include <algorithm>
++#include <unordered_set>
+ #include <unistd.h>
+ #include <fcntl.h>
+ #include <sys/stat.h>
+@@ -54,6 +63,11 @@
+ int32_t                g_current_game_substate = -1;
+ int32_t                g_current_game_popup = -1;
+ bool                   g_engine_ready = false;
++bool                   g_guest_paused = false;
++bool                   g_resume_requested = true;
++std::atomic<bool>      g_exit_requested{false};
++int32_t                g_logical_w = 400;
++int32_t                g_logical_h = 240;
+ std::string            g_last_frame_status = "Awaiting first frame";
+ 
+ // Unique asset name mapping (mirrors CletEntry.getUniqueNumberFromStrings / getUniqueAssetNameFromID)
+@@ -78,6 +92,211 @@
+ int32_t                g_music_volume = 80;
+ int32_t                g_sound_volume = 80;
+ 
++uc_hook g_framebuffer_copy_hook = 0;
++uint64_t g_fast_copy_calls = 0, g_fast_copy_bytes = 0, g_copy_fallbacks = 0;
++std::vector<uint8_t> g_copy_row;
++std::unordered_set<uint32_t> g_utf_copies;
++using GuestCodeCallback=void (*)(uc_engine*,uint64_t,uint32_t,void*);
++struct GuardedCallback { GuestCodeCallback callback; };
++void guarded_guest_callback(uc_engine* uc,uint64_t address,uint32_t size,void* data) {
++    try { static_cast<GuardedCallback*>(data)->callback(uc,address,size,nullptr); }
++    catch (const std::exception& error) { g_native_engine.abort_execution(error.what()); }
++    catch (...) { g_native_engine.abort_execution("Unknown native raster failure"); }
++}
++
++void accelerate_framebuffer_copy(uc_engine* uc, uint64_t, uint32_t, void*) {
++    uint32_t args[10] = {}, sp = 0, lr = 0;
++    int registers[] = {UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2,
++                       UC_ARM_REG_R3, UC_ARM_REG_SP, UC_ARM_REG_LR};
++    void* values[] = {&args[0], &args[1], &args[2], &args[3], &sp, &lr};
++    uc_reg_read_batch(uc, registers, values, 6);
++    hl5::GuestFramebuffer dst{}, src{};
++    int32_t context[16] = {};
++    if (!g_native_engine.read_memory(sp, args + 4, 24) ||
++        !g_native_engine.read_memory(args[0], &dst, sizeof(dst)) ||
++        !g_native_engine.read_memory(args[5], &src, sizeof(src)) ||
++        !g_native_engine.read_memory(args[8], context, sizeof(context))) return;
++    hl5::FramebufferCopyPlan plan;
++    if (!hl5::plan_opaque_framebuffer_copy(dst, args[1], args[2], args[3], args[4],
++            src, args[6], args[7], context, args[9] & 255, plan)) {
++        ++g_copy_fallbacks;
++        return; // Execute the original function for all unsupported semantics.
++    }
++    g_copy_row.resize(plan.row_bytes);
++    for (uint32_t row = 0; row < plan.rows; ++row) {
++        if (!g_native_engine.read_memory(plan.source + row * plan.source_stride,
++                                        g_copy_row.data(), plan.row_bytes) ||
++            !g_native_engine.write_memory(plan.destination + row * plan.destination_stride,
++                                         g_copy_row.data(), plan.row_bytes)) return;
++    }
++    ++g_fast_copy_calls;
++    g_fast_copy_bytes += uint64_t(plan.row_bytes) * plan.rows;
++    uc_reg_write(uc, UC_ARM_REG_PC, &lr);
++}
++
++uc_hook g_alpha_fill_hook = 0, g_indexed_blit_hook = 0;
++uc_hook g_frame_blend_hook = 0, g_rect_blend_hook = 0, g_context_fill_hook = 0;
++uc_hook g_palette_blend_hook = 0;
++uint32_t g_skip_color_address = 0;
++std::vector<uint16_t> g_raster_plane;
++std::vector<uint8_t> g_indexed_pixels;
++uint16_t g_indexed_palette[256];
++uint8_t g_effect_table[1024];
++
++bool read_raster_arguments(uc_engine* uc, uint32_t* args, uint32_t count, uint32_t& lr) {
++    uint32_t sp = 0;
++    int registers[] = {UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2,
++                       UC_ARM_REG_R3, UC_ARM_REG_SP, UC_ARM_REG_LR};
++    void* values[] = {&args[0], &args[1], &args[2], &args[3], &sp, &lr};
++    if (uc_reg_read_batch(uc, registers, values, 6) != UC_ERR_OK) return false;
++    return g_native_engine.read_memory(sp, args + 4, (count - 4) * 4);
++}
++bool read_raster_rectangle(const hl5::GuestFramebuffer& fb, const hl5::RasterRect& rect) {
++    g_raster_plane.resize(size_t(rect.width) * rect.height);
++    for (int32_t y = 0; y < rect.height; ++y) {
++        uint32_t address = fb.pixels + (rect.y + y) * fb.stride + rect.x * 2;
++        if (!g_native_engine.read_memory(address, g_raster_plane.data() + y * rect.width,
++                                         rect.width * 2)) return false;
++    }
++    return true;
++}
++void write_raster_rectangle(const hl5::GuestFramebuffer& fb, const hl5::RasterRect& rect) {
++    for (int32_t y = 0; y < rect.height; ++y) {
++        uint32_t address = fb.pixels + (rect.y + y) * fb.stride + rect.x * 2;
++        if (!g_native_engine.write_memory(address, g_raster_plane.data() + y * rect.width,
++                                          rect.width * 2))
++            throw std::runtime_error("Native raster commit failed; stopped before repeating alpha blend");
++    }
++}
++void accelerate_alpha_fill(uc_engine* uc, uint64_t, uint32_t, void*) {
++    uint32_t args[8] = {}, lr = 0;
++    if (!read_raster_arguments(uc, args, 8, lr)) return;
++    if ((args[6] & 255) == 0) { uc_reg_write(uc, UC_ARM_REG_PC, &lr); return; }
++    hl5::GuestFramebuffer fb{};
++    uint8_t rgb_type = 0;
++    if (!g_native_engine.read_memory(args[1], &fb, sizeof(fb)) ||
++        !g_native_engine.read_memory(args[0] + 0x5c, &rgb_type, 1)) return;
++    hl5::RasterRect rect;
++    if (!hl5::plan_alpha_fill565(fb, rgb_type, args[2], args[3], args[4], args[5], rect)) return;
++    if (!read_raster_rectangle(fb, rect)) return;
++    hl5::alpha_fill_row565(g_raster_plane.data(), rect.width * rect.height, args[7], args[6]);
++    write_raster_rectangle(fb, rect);
++    uc_reg_write(uc, UC_ARM_REG_PC, &lr);
++}
++void accelerate_indexed_blit(uc_engine* uc, uint64_t, uint32_t, void*) {
++    uint32_t args[11] = {}, lr = 0, skip_color = 0;
++    if (!read_raster_arguments(uc, args, 11, lr)) return;
++    hl5::GuestFramebuffer fb{};
++    hl5::GuestIndexedImage image{};
++    int32_t clip[4] = {};
++    if (!g_native_engine.read_memory(args[1], &fb, sizeof(fb)) ||
++        !g_native_engine.read_memory(args[6], &image, sizeof(image)) ||
++        !g_native_engine.read_memory(args[0] + 0x40e0, clip, sizeof(clip)) ||
++        !g_native_engine.read_memory(g_skip_color_address, &skip_color, 4)) return;
++    hl5::IndexedBlitPlan plan;
++    if (!hl5::plan_indexed_blit565(fb, clip, args[2], args[3], args[4], args[5], image,
++                                  args[7], args[8], args[9] & 255, args[10], plan)) return;
++    g_indexed_pixels.resize(size_t(plan.source_stride) * image.height);
++    if (!g_native_engine.read_memory(image.pixels, g_indexed_pixels.data(), g_indexed_pixels.size()) ||
++        !g_native_engine.read_memory(image.palette, g_indexed_palette, plan.bits == 4 ? 32 : 512) ||
++        !read_raster_rectangle(fb, plan.destination)) return;
++    for (int32_t y = 0; y < plan.destination.height; ++y) {
++        int32_t dy = plan.flip_y ? plan.destination.height - 1 - y : y;
++        hl5::indexed_blit_row565(g_raster_plane.data() + dy * plan.destination.width,
++            g_indexed_pixels.data() + (plan.sy + y) * plan.source_stride, g_indexed_palette,
++            plan.sx, plan.destination.width, plan.bits, plan.flip_x, skip_color);
++    }
++    write_raster_rectangle(fb, plan.destination);
++    uc_reg_write(uc, UC_ARM_REG_PC, &lr);
++}
++
++void accelerate_table_effect(uc_engine* uc, bool whole_frame) {
++    uint32_t args[9] = {}, lr = 0;
++    if (!read_raster_arguments(uc, args, whole_frame ? 5 : 9, lr)) return;
++    uint32_t alpha = args[whole_frame ? 4 : 7] & 255;
++    if (!alpha) { uc_reg_write(uc, UC_ARM_REG_PC, &lr); return; }
++    uint32_t mode = args[whole_frame ? 3 : 6] & 255;
++    if (mode > 15) return;
++    hl5::GuestFramebuffer fb{};
++    uint8_t rgb_type = 0;
++    if (!g_native_engine.read_memory(args[1], &fb, sizeof(fb)) ||
++        !g_native_engine.read_memory(args[0] + 0x5c, &rgb_type, 1)) return;
++    if (whole_frame && fb.stride != fb.width * 2) return;
++    hl5::RasterRect rect;
++    if (!hl5::plan_alpha_fill565(fb, rgb_type, whole_frame ? 0 : args[2],
++            whole_frame ? 0 : args[3], whole_frame ? fb.width : args[4],
++            whole_frame ? fb.height : args[5], rect)) return;
++    if (!g_native_engine.read_memory(args[0] + 0x6d + mode * 1024, g_effect_table, sizeof(g_effect_table)) ||
++        !read_raster_rectangle(fb, rect)) return;
++    hl5::table_blend_row565(g_raster_plane.data(), rect.width * rect.height,
++                            args[whole_frame ? 2 : 8], alpha, g_effect_table);
++    write_raster_rectangle(fb, rect);
++    uc_reg_write(uc, UC_ARM_REG_PC, &lr);
++}
++void accelerate_frame_blend(uc_engine* uc, uint64_t, uint32_t, void*) {
++    accelerate_table_effect(uc, true);
++}
++void accelerate_rect_blend(uc_engine* uc, uint64_t, uint32_t, void*) {
++    accelerate_table_effect(uc, false);
++}
++void accelerate_context_fill(uc_engine* uc, uint64_t, uint32_t, void*) {
++    uint32_t args[6] = {}, lr = 0;
++    if (!read_raster_arguments(uc, args, 6, lr)) return;
++    hl5::GuestFramebuffer fb{};
++    int32_t context[16] = {};
++    if (!g_native_engine.read_memory(args[0], &fb, sizeof(fb)) ||
++        !g_native_engine.read_memory(args[5], context, sizeof(context))) return;
++    hl5::RasterRect rect;
++    if (!hl5::plan_context_fill565(fb, args[1], args[2], args[3], args[4], context, rect)) return;
++    g_raster_plane.resize(size_t(rect.width) * rect.height);
++    std::fill(g_raster_plane.begin(), g_raster_plane.end(), static_cast<uint16_t>(context[5]));
++    write_raster_rectangle(fb, rect);
++    uc_reg_write(uc, UC_ARM_REG_PC, &lr);
++}
++
++void accelerate_palette_blend(uc_engine* uc, uint64_t, uint32_t, void*) {
++    uint32_t a[7] = {}, lr = 0, skip = 0;
++    uint8_t rgb = 0, header[21] = {};
++    if (!read_raster_arguments(uc, a, 7, lr) || a[3] > 15 ||
++        !g_native_engine.read_memory(a[0] + 0x5c, &rgb, 1) || rgb != 1 ||
++        !g_native_engine.read_memory(a[1], header, sizeof(header))) return;
++    uint32_t palette = 0, backup = 0, count = header[1], bytes = count * 2;
++    memcpy(&palette, header + 8, 4); memcpy(&backup, header + 16, 4);
++    if (palette < 0x10000 || backup < 0x10000 ||
++        uint64_t(palette) + bytes > 0xffffffffULL || uint64_t(backup) + bytes > 0xffffffffULL ||
++        (palette != backup && uint64_t(palette) < uint64_t(backup) + bytes &&
++         uint64_t(backup) < uint64_t(palette) + bytes)) return;
++    uint16_t source[256], destination[256];
++    if (!g_native_engine.read_memory(g_skip_color_address, &skip, 4) ||
++        (bytes && (!g_native_engine.read_memory(backup, source, bytes) ||
++                   !g_native_engine.read_memory(palette, destination, bytes))) ||
++        ((a[4] & 255) && !g_native_engine.read_memory(a[0] + 0x6d + a[3] * 1024,
++                                                      g_effect_table, sizeof(g_effect_table)))) return;
++    hl5::palette_blend565(destination, source, count, a[2], a[4], a[5] & 255,
++                          a[6] & 255, skip, g_effect_table);
++    uint8_t changed = 1;
++    if ((bytes && !g_native_engine.write_memory(palette, destination, bytes)) ||
++        !g_native_engine.write_memory(a[1] + 20, &changed, 1))
++        throw std::runtime_error("Palette commit failed; stopped before repeating effect");
++    uc_reg_write(uc, UC_ARM_REG_R0, &a[1]); uc_reg_write(uc, UC_ARM_REG_PC, &lr);
++}
++
++
++void publish_boot_status(JNIEnv* env, jobject activity, const std::string& status) {
++    g_last_frame_status = status;
++    LOGI("%s", status.c_str());
++    jclass cls = env->GetObjectClass(activity);
++    jmethodID method = env->GetMethodID(cls, "onNativeStatus", "(Ljava/lang/String;)V");
++    if (method) {
++        jstring message = env->NewStringUTF(status.c_str());
++        env->CallVoidMethod(activity, method, message);
++        env->DeleteLocalRef(message);
++    }
++    env->DeleteLocalRef(cls);
++}
++
++#include "font_bridge.h"
++
+ JNIEnv* get_host_env() {
+     if (!g_host_jvm) return nullptr;
+     JNIEnv* env = nullptr;
+@@ -199,6 +418,11 @@
+ 
+         // Built-in Java method stubs:
+         if (cls == "co/kr/eamobile/CletEntry") {
++            if (name == "exitApp" && sig == "()V") {
++                // Finish on the host only after the guest call has unwound.
++                g_exit_requested = true;
++                return {true, 0};
++            }
+             if (name == "getUniqueNumberFromStrings" && extra_args.size() >= 1) {
+                 // Resolve string handle → lookup/assign unique ID
+                 auto* str_desc = g_handle_table.find_descriptor(extra_args[0]);
+@@ -216,16 +440,14 @@
+                 int id = static_cast<int>(extra_args[0]);
+                 auto it = g_id_to_name.find(id);
+                 std::string result = (it != g_id_to_name.end()) ? it->second : "";
+-                uint32_t str_ptr = g_native_engine.write_string(result);
+                 uint32_t h = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, result);
+                 // Also write string pointer in guest for GetStringUTFChars
+                 return {true, h};
+             }
+             if (name == "getMin") {
+                 // Return IMEI-like string
+-                uint32_t str_ptr = g_native_engine.write_string("01000000000");
+                 uint32_t h = g_handle_table.allocate(hl5::HandleType::LOCAL_REF,
+-                    reinterpret_cast<void*>(static_cast<uintptr_t>(str_ptr)), "01000000000");
++                    nullptr, "01000000000");
+                 return {true, h};
+             }
+             if (name == "freeMemory") return {true, 64 * 1024 * 1024};
+@@ -491,18 +713,16 @@
+             uint32_t str_handle = args[1];
+             auto* desc = g_handle_table.find_descriptor(str_handle);
+             if (!desc) return 0;
+-            // If host_ptr holds original guest string address, return it
+-            uintptr_t guest_ptr = reinterpret_cast<uintptr_t>(desc->host_ptr);
+-            if (guest_ptr >= 0x10000 && guest_ptr < 0x80000000) {
+-                return static_cast<uint32_t>(guest_ptr);
+-            }
+-            // Otherwise write class_name (the string content) to guest memory
+-            return g_native_engine.write_string(desc->class_name);
+-        });
+-
+-    // ReleaseStringUTFChars (offset 0x2A8) — no-op
+-    register_jni_slot(table_vaddr, 0x2A8, "JNIEnv::ReleaseStringUTFChars",
+-        [](const std::vector<uint32_t>&) -> uint32_t { return 0; });
++            uint32_t pointer=g_native_engine.write_string(desc->class_name);
++            g_utf_copies.insert(pointer);
++            if (args[2]) { uint8_t copied=1; g_native_engine.write_memory(args[2],&copied,1); }
++            return pointer;
++        });
++    register_jni_slot(table_vaddr,0x2A8,"JNIEnv::ReleaseStringUTFChars",
++        [](const std::vector<uint32_t>& args) -> uint32_t {
++            if (g_utf_copies.erase(args[2])) g_native_engine.free_heap(args[2]);
++            return 0;
++        });
+ 
+     // GetJavaVM (offset 0x36C)
+     register_jni_slot(table_vaddr, 0x36C, "JNIEnv::GetJavaVM",
+@@ -749,12 +969,15 @@
+     JNIEnv* env,
+     jobject thiz,
+     jstring internalPathStr,
+-    jstring externalPathStr) {
++    jstring externalPathStr, jint width, jint height, jboolean debug) {
++    std::lock_guard<std::mutex> lock(g_engine_mutex);
+     // Runs on GLThread with active EGLContext!
+     install_signal_handlers();
++    g_gles_bridge.set_diagnostics_enabled(debug != JNI_FALSE);
+     LOGI("[MILESTONE 1/9] nativeOnSurfaceCreated entered on GLThread");
+-    g_frame_counter = 0;
+-    g_engine_ready = false;
++    g_surface_w = width;
++    g_surface_h = height;
++    g_gles_bridge.set_surface_size(width, height);
+ 
+     // Cache host JavaVM and MainActivity audio callback methods
+     env->GetJavaVM(&g_host_jvm);
+@@ -777,17 +1000,50 @@
+         g_mid_free_sound    = env->GetMethodID(act_cls, "onFreeSoundClip",    "(J)I");
+         g_mid_set_sound_vol = env->GetMethodID(act_cls, "onSetSoundVolume",   "(I)V");
+     }
++    if (act_cls) env->DeleteLocalRef(act_cls);
++    if (g_engine_ready) {
++        // A new EGL context does not require a new CPU/game instance.
++        // Recreate only the guest textures and GL state, retaining map and player RAM.
++        try {
++            if (!g_guest_paused) {
++                uint32_t pause = g_elf_loader.find_symbol("Java_co_kr_eamobile_CletEntry_nativePauseApp");
++                if (!pause) throw std::runtime_error("Missing target pause entry point");
++                g_native_engine.call_function(pause, {g_jnienv32_ptr, g_thiz_handle});
++                g_guest_paused = true;
++            }
++            g_resume_requested = true;
++            publish_boot_status(env, thiz, "Restoring graphics; existing game session retained");
++        } catch (const std::exception& e) {
++            g_engine_ready = false;
++            publish_boot_status(env, thiz, std::string("FAIL RESTORE: ") + e.what());
++        }
++        return;
++    }
++    g_frame_counter = 0;
++    g_guest_paused = false;
++    g_resume_requested = true;
++    g_exit_requested = false;
++    g_logical_w = hl5::logical_width_for_surface(width,height);
++    g_logical_h = hl5::logical_height_for_surface(width,height);
++    g_gles_bridge.set_logical_size(g_logical_w, g_logical_h);
+     // 1. Initialize GLES Bridge with host driver
+     LOGI("[MILESTONE 2/9] Initializing EGL/GLES 1.1 Bridge");
++    publish_boot_status(env, thiz, "BOOT: initializing GLES 1.1 driver/context");
+     bool gles_ok = g_gles_bridge.initialize();
+     g_gles_bridge.reset_diagnostics();
+     LOGI("[MILESTONE 2/9 RESULT] GLES Bridge result: %d (provider: %s)", gles_ok, g_gles_bridge.gles_provider_name());
++
++    if (!gles_ok) {
++        publish_boot_status(env, thiz, std::string("FAIL GLES: ") + g_gles_bridge.gles_provider_name());
++        return;
++    }
++    publish_boot_status(env, thiz, "BOOT: initializing ARM32 CPU emulation");
+ 
+     // 2. Initialize ARM32 Unicorn CPU Engine
+     LOGI("[MILESTONE 3/9] Initializing ARM32 Unicorn CPU Engine");
+     if (!g_native_engine.initialize()) {
+         LOGE("[MILESTONE 3/9 FAIL] Engine initialization failed on GLThread");
+-        g_last_frame_status = "[FAIL] Engine initialization failed on GLThread";
++        publish_boot_status(env, thiz, "FAIL CPU: Unicorn initialization/memory mapping failed");
+         return;
+     }
+     LOGI("[MILESTONE 3/9 PASS] Native ARM32 Unicorn CPU Engine initialized successfully on GLThread");
+@@ -833,14 +1089,49 @@
+ 
+     if (!loaded) {
+         LOGE("ELF binary not found or failed to load");
+-        g_last_frame_status = "ELF binary not found or failed to load";
++        publish_boot_status(env, thiz, std::string("FAIL ELF: ") +
++            (g_elf_loader.last_error().empty() ? "target ELF asset not found or unreadable" : g_elf_loader.last_error()));
++        return;
++    }
++
++    if (g_elf_loader.find_symbol("gv") != 0x40000000 + hl5::target::gv_address ||
++        g_elf_loader.find_symbol("_ZTV13StateMainMenu") != 0x40000000 + hl5::target::menu_vtable_address) {
++        publish_boot_status(env, thiz, "FAIL PROFILE: guest symbols do not match the target");
+         return;
+     }
+ 
+     // Save/load persistence diagnostics (read-only guest tracepoints + storage
+     // path log). No guest behavior changed.
+-    Hl5SaveTrace_Install(g_native_engine, g_elf_loader);
+-
++    if (debug != JNI_FALSE) Hl5SaveTrace_Install(g_native_engine, g_elf_loader);
++
++    // This entry is required and fingerprinted by the target profile.
++    uint32_t copy_entry = g_elf_loader.find_symbol("_Z26internalGrpCopyFrameBufferiiiiiiiiP14_MC_GrpContexth");
++    g_fast_copy_calls = g_fast_copy_bytes = g_copy_fallbacks = 0;
++    g_utf_copies.clear();
++    static GuardedCallback copy_callback{accelerate_framebuffer_copy};
++    if (copy_entry) {
++        uc_err error = uc_hook_add(g_native_engine.uc_, &g_framebuffer_copy_hook, UC_HOOK_CODE,
++            reinterpret_cast<void*>(guarded_guest_callback), &copy_callback, copy_entry, copy_entry);
++        if (error != UC_ERR_OK) LOGW("Native framebuffer copy unavailable: %s", uc_strerror(error));
++    }
++    g_skip_color_address = g_elf_loader.find_symbol("SKIP_COLOR");
++    struct RasterHook { const char* name; uc_hook* hook; GuestCodeCallback callback; GuardedCallback guarded; };
++    static RasterHook raster_hooks[] = {
++        {"_ZN7Graphic13FillRectAlphaEiiiiihi", &g_alpha_fill_hook, accelerate_alpha_fill, {accelerate_alpha_fill}},
++        {"_ZN7Graphic22DrawImageMirrorClip565EiiiiiP8GbmImageiihi", &g_indexed_blit_hook, accelerate_indexed_blit, {accelerate_indexed_blit}},
++        {"_ZN7Graphic28ChangeFrameBufferBlending565Eiihh", &g_frame_blend_hook, accelerate_frame_blend, {accelerate_frame_blend}},
++        {"_ZN7Graphic16FillRectBlendingEiiiiihhi", &g_rect_blend_hook, accelerate_rect_blend, {accelerate_rect_blend}},
++        {"MC_grpFillRect", &g_context_fill_hook, accelerate_context_fill, {accelerate_context_fill}},
++        {"_ZN7Graphic17ChangeBlendingPalEP8GbmImageihhhh", &g_palette_blend_hook, accelerate_palette_blend, {accelerate_palette_blend}}
++    };
++    for (auto& raster : raster_hooks) {
++        uint32_t entry = g_elf_loader.find_symbol(raster.name);
++        if (!entry) continue;
++        uc_err error = uc_hook_add(g_native_engine.uc_, raster.hook, UC_HOOK_CODE,
++            reinterpret_cast<void*>(guarded_guest_callback), &raster.guarded, entry, entry);
++        if (error != UC_ERR_OK) LOGW("Native raster unavailable: %s", uc_strerror(error));
++    }
++    install_font_bridge();
+     // 5. Build JNI bridge vtable in guest memory
+     LOGI("[MILESTONE 5/9] Setting up JNI bridge vtable");
+     setup_jni_bridge();
+@@ -848,6 +1139,7 @@
+     // 6. Execute authentic boot sequence (mirrors CletEntry.smali startup)
+     LOGI("[MILESTONE 6/9] Executing authentic guest boot sequence");
+     try {
++        publish_boot_status(env, thiz, "BOOT 1/7: target kernel");
+         // Stage 1: nativeInitKernel — creates AndroidService singleton, caches Java method IDs
+         g_handle_table.push_local_frame();
+         g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
+@@ -861,6 +1153,7 @@
+         }
+         g_handle_table.pop_local_frame();
+ 
++        publish_boot_status(env, thiz, "BOOT 2/7: target display");
+         // Stage 2: nativeInitDisplay — configures screen dimensions, color depth, magnification
+         g_handle_table.push_local_frame();
+         g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
+@@ -871,29 +1164,18 @@
+             uint32_t mag_bits = 0;
+             memcpy(&mag_bits, &mag, sizeof(float));
+ 
+-            LOGI("[BOOT 2/7] nativeInitDisplay at 0x%08x (800x480 → 400x240 @ 2.0x mag)", init_display_sym);
++            LOGI("[BOOT 2/7] nativeInitDisplay at 0x%08x (%dx%d logical @ 2.0x mag)", init_display_sym, g_logical_w, g_logical_h);
+             g_native_engine.call_function(init_display_sym, {
+                 g_jnienv32_ptr, g_thiz_handle,
+-                800, 480,        // screenW, screenH
++                static_cast<uint32_t>(g_logical_w * 2), static_cast<uint32_t>(g_logical_h * 2), // screenW, screenH
+                 5, 6, 5, 0,      // R, G, B, A bits (RGB565)
+-                400, 240, 0, 0,  // wipiW, wipiH, marginX, marginY
++                static_cast<uint32_t>(g_logical_w), static_cast<uint32_t>(g_logical_h), 0, 0, // wipiW, wipiH, margins
+                 0, mag_bits, 0, 0, // wipiColor, magnification, filterType, viewMode
+                 0, 0             // useSublayer, sublayerPixel
+             }, 10000000);
+             LOGI("[BOOT 2/7] nativeInitDisplay complete");
+         } else {
+-            LOGW("[BOOT 2/7] nativeInitDisplay symbol not found — using manual init");
+-            uint32_t make_sym = g_elf_loader.find_symbol("_ZN18MIDASKernelManager12makeInstanceEv");
+-            if (make_sym) g_km_instance = g_native_engine.call_function(make_sym, {});
+-            if (g_km_instance != 0) {
+-                uint32_t w = 400, h = 240;
+-                g_native_engine.write_memory(g_km_instance + 0x624, &w, 4);
+-                g_native_engine.write_memory(g_km_instance + 0x628, &h, 4);
+-                uint32_t init2d = g_elf_loader.find_symbol("_ZN18MIDASKernelManager12init2DScreenEv");
+-                if (init2d) g_native_engine.call_function(init2d, {g_km_instance});
+-                uint32_t tex = g_elf_loader.find_symbol("_ZN18MIDASKernelManager14createTexturesEv");
+-                if (tex) g_native_engine.call_function(tex, {g_km_instance});
+-            }
++            throw std::runtime_error("Missing verified target nativeInitDisplay entry point");
+         }
+         g_handle_table.pop_local_frame();
+ 
+@@ -904,6 +1186,7 @@
+             LOGI("MIDASKernelManager singleton at 0x%08x", g_km_instance);
+         }
+ 
++        publish_boot_status(env, thiz, "BOOT 3/7: save storage");
+         // Stage 3: nativeInitFileStorage — sets internal/external storage paths
+         g_handle_table.push_local_frame();
+         g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
+@@ -927,6 +1210,7 @@
+         }
+         g_handle_table.pop_local_frame();
+ 
++        publish_boot_status(env, thiz, "BOOT 4/7: original target VFS");
+         // Stage 4: nativeInitVFS — opens and registers data.vfs.mp3 with VFS adapter
+         g_handle_table.push_local_frame();
+         g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
+@@ -962,7 +1246,7 @@
+                 uint32_t fd_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, fd_class);
+ 
+                 uint32_t len_low = static_cast<uint32_t>(vfs_len & 0xFFFFFFFF);
+-                uint32_t len_high = static_cast<uint32_t>((vfs_len >> 32) & 0xFFFFFFFF);
++                uint32_t len_high = static_cast<uint32_t>((static_cast<uint64_t>(vfs_len) >> 32) & 0xFFFFFFFF);
+ 
+                 LOGI("[BOOT 4/7] nativeInitVFS at 0x%08x", init_vfs_sym);
+                 g_native_engine.call_function(init_vfs_sym, {
+@@ -978,6 +1262,7 @@
+         }
+         g_handle_table.pop_local_frame();
+ 
++        publish_boot_status(env, thiz, "BOOT 5/7: audio bridge");
+         // Stage 5: nativeInitAudioConfiguration
+         g_handle_table.push_local_frame();
+         g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
+@@ -989,6 +1274,7 @@
+         }
+         g_handle_table.pop_local_frame();
+ 
++        publish_boot_status(env, thiz, "BOOT 6/7: target application start");
+         // Stage 6: nativeStartApp — creates CGame, enters main menu
+         g_handle_table.push_local_frame();
+         g_thiz_handle = g_handle_table.allocate(hl5::HandleType::LOCAL_REF, nullptr, "CletEntry_instance");
+@@ -1000,9 +1286,10 @@
+         }
+         g_handle_table.pop_local_frame();
+ 
++        publish_boot_status(env, thiz, "BOOT 7/7: target game state");
+         // Stage 7: Read CGame pointer and verify state
+         uint32_t game_obj = 0;
+-        g_native_engine.read_memory(0x40164368, &game_obj, 4);
++        game_obj = g_elf_loader.find_symbol("gv");
+         if (game_obj >= 0x40000000) {
+             g_game_instance = game_obj;
+             LOGI("[BOOT 7/7] CGame object at 0x%08x — game world initialized", game_obj);
+@@ -1011,12 +1298,12 @@
+         }
+ 
+         g_engine_ready = true;
+-        g_last_frame_status = "Boot complete: JNI bridge + authentic init sequence";
++        publish_boot_status(env, thiz, "Original target engine running");
+         LOGI("[MILESTONE 9/9] Full authentic boot sequence complete, ready for frame rendering");
+ 
+     } catch (const std::exception& e) {
+         LOGE("Boot sequence failed: %s", e.what());
+-        g_last_frame_status = std::string("Boot failed: ") + e.what();
++        publish_boot_status(env, thiz, std::string("FAIL BOOT: ") + e.what());
+     }
+ }
+ 
+@@ -1031,39 +1318,44 @@
+     g_surface_h = height;
+     g_gles_bridge.set_surface_size(width, height);
+ 
+-    if (g_engine_ready && g_km_instance != 0) {
+-        // Keep guest coordinate space mapped to 800x480 quad
+-        uint32_t w = 800;
+-        uint32_t h = 480;
+-        g_native_engine.write_memory(g_km_instance + 0x624, &w, 4);
+-        g_native_engine.write_memory(g_km_instance + 0x628, &h, 4);
+-        uint32_t init2d_sym = g_elf_loader.find_symbol("_ZN18MIDASKernelManager12init2DScreenEv");
+-        if (init2d_sym != 0) {
+-            g_native_engine.call_function(init2d_sym, {g_km_instance});
+-        }
+-    }
++    // Preserve guest display and framebuffer dimensions across surface recreation.
++
+ }
+ 
+ JNIEXPORT jstring JNICALL
+ Java_co_kr_eamobile_hl5_runner_MainActivity_nativeOnDrawFrame(
+     JNIEnv* env,
+-    jobject /*thiz*/) {
++    jobject /*thiz*/, jboolean wantStatus) {
+     // Runs on GLThread with current EGLContext!
+     g_frame_counter++;
+     if (g_frame_counter == 1) {
+         LOGI("[MILESTONE 6/9] First game loop frame triggered on GLThread");
+     }
+-    if (g_engine_ready && g_km_instance != 0) {
++    if (g_engine_ready && g_guest_paused && g_resume_requested && g_gles_bridge.has_current_context()) {
++        std::lock_guard<std::mutex> lock(g_engine_mutex);
++        try {
++            uint32_t resume = g_elf_loader.find_symbol("Java_co_kr_eamobile_CletEntry_nativeResumeApp");
++            if (!resume) throw std::runtime_error("Missing target resume entry point");
++            g_native_engine.call_function(resume, {g_jnienv32_ptr, g_thiz_handle});
++            g_guest_paused = false;
++            g_last_frame_status = "Existing game session resumed";
++        } catch (const std::exception& e) {
++            g_engine_ready = false;
++            g_last_frame_status = std::string("FAIL RESUME: ") + e.what();
++        }
++    }
++    if (g_engine_ready && !g_guest_paused && g_km_instance != 0) {
+     g_gles_bridge.clear_screen();
+     g_gles_bridge.apply_active_viewport();
+         std::lock_guard<std::mutex> lock(g_engine_mutex);
++        font_bridge_begin_frame();
+         // Execute recurring frame lifecycle:
+         // 1. Process game logic and timers via nativeLoop if available
+         uint32_t loop_sym = g_elf_loader.find_symbol("Java_co_kr_eamobile_CletEntry_nativeLoop");
+         uint32_t update_sym = g_elf_loader.find_symbol("_ZN18MIDASKernelManager12updateScreenEv");
+         try {
+             if (loop_sym != 0) {
+-                g_native_engine.call_function(loop_sym, {g_jnienv32_ptr, g_thiz_handle});
++                g_native_engine.call_function(loop_sym, {g_jnienv32_ptr, g_thiz_handle}, 120000000);
+             } else if (update_sym != 0) {
+                 g_native_engine.call_function(update_sym, {g_km_instance});
+             }
+@@ -1071,14 +1363,14 @@
+                 LOGI("[MILESTONE 7/9] Successfully executed first guest game-loop tick");
+             }
+             
+-            // Query active state from CGame object ([0x40164368])
+-            uint32_t game_obj_var = 0x40164368;
++            // Query active state from CGame object (resolved gv symbol)
++            uint32_t game_obj_var = g_elf_loader.find_symbol("gv");
+             uint32_t game_obj = 0;
+-            g_native_engine.read_memory(game_obj_var, &game_obj, 4);
++            game_obj = game_obj_var;
+             if (game_obj >= 0x40000000) {
+                 g_game_instance = game_obj;
+                 uint32_t state_ptr = 0;
+-                g_native_engine.read_memory(game_obj + 0x27c, &state_ptr, 4);
++                g_native_engine.read_memory(game_obj + hl5::target::state_offset, &state_ptr, 4);
+                 if (state_ptr >= 0x40000000) {
+                     uint32_t vtable = 0;
+                     g_native_engine.read_memory(state_ptr, &vtable, 4);
+@@ -1092,33 +1384,26 @@
+ 
+                     // Authentic Offline Hardening:
+                     // 1. Mark legacy carrier SMS flag [game_obj + 42] = 'N' (0x4E) to skip SMS consent loop.
+-                    // 2. Mark cloud save check flag [game_obj + 142] = 1 (0x01) so Title Screen and Data Management
++                    // 2. Mark cloud save check flag [game_obj + hl5::target::offline_flag_offset] = 1 (0x01) so Title Screen and Data Management
+                     //    bypass DSPSock::DSP_Connect() and transition directly to Main Menu (State 4) & local storage.
+                     uint8_t sms_flag = 0, server_check_flag = 0;
+-                    g_native_engine.read_memory(game_obj + 42, &sms_flag, 1);
+-                    g_native_engine.read_memory(game_obj + 142, &server_check_flag, 1);
++                    g_native_engine.read_memory(game_obj + hl5::target::sms_flag_offset, &sms_flag, 1);
++                    g_native_engine.read_memory(game_obj + hl5::target::offline_flag_offset, &server_check_flag, 1);
+ 
+                     if (sms_flag == 0) {
+                         uint8_t flag = 'N';
+-                        g_native_engine.write_memory(game_obj + 42, &flag, 1);
++                        g_native_engine.write_memory(game_obj + hl5::target::sms_flag_offset, &flag, 1);
+                     }
+                     if (server_check_flag != 1) {
+                         uint8_t flag = 1;
+-                        g_native_engine.write_memory(game_obj + 142, &flag, 1);
++                        g_native_engine.write_memory(game_obj + hl5::target::offline_flag_offset, &flag, 1);
+                     }
+-                    // Enable Fixed D-Pad mode ([game_obj + 143] |= 1) so the virtual directional pad
+-                    // is anchored at (65, 175) and responds immediately to directional button taps.
+-                    uint8_t dpad_opt = 0;
+-                    g_native_engine.read_memory(game_obj + 143, &dpad_opt, 1);
+-                    if ((dpad_opt & 1) == 0) {
+-                        dpad_opt |= 1;
+-                        g_native_engine.write_memory(game_obj + 143, &dpad_opt, 1);
+-                    }
++                    // Keep the target input options unchanged.
+ 
+                     // ONLY apply StateMainMenu transitions when state_ptr is an instance of StateMainMenu
+-                    // (vtable == 0x40163ae0). Never invoke StateMainMenu methods on StatePopup (0x40163cc0)
+-                    // or StateGame (0x40163860), as StatePopup has 0 at offset 0xc and would be corrupted!
+-                    if (vtable == 0x40163ae0) {
++                    // (vtable == g_elf_loader.find_symbol("_ZTV13StateMainMenu") + 8). Never invoke StateMainMenu methods on StatePopup (target popup vtable)
++                    // or StateGame (target game vtable), as StatePopup has 0 at offset 0xc and would be corrupted!
++                    if (vtable == g_elf_loader.find_symbol("_ZTV13StateMainMenu") + 8) {
+                         if (s_id == 0) {
+                             // Cold boot fast-fail: bypass 60s dead-server CheckEvent hang
+                             uint32_t load_logo_sym = g_elf_loader.find_symbol("_ZN13StateMainMenu14LoadLogoSpriteEa");
+@@ -1138,18 +1423,30 @@
+                                 LOGI("[OFFLINE_HARDENING] Recovered from SMS consent prompt (SubState 1) -> Logo Animation (SubState 3)");
+                             }
+                         } else if (s_id == 3) {
+-                            // In State 3 (Title Screen), ensure [game_obj + 142] = 1 is locked so touches advance to State 4 Main Menu
++                            // In State 3 (Title Screen), ensure [game_obj + hl5::target::offline_flag_offset] = 1 is locked so touches advance to State 4 Main Menu
+                             uint8_t flag = 1;
+-                            g_native_engine.write_memory(game_obj + 142, &flag, 1);
++                            g_native_engine.write_memory(game_obj + hl5::target::offline_flag_offset, &flag, 1);
+                         }
+                     }
+                 }
+             }
+         } catch (const std::exception& e) {
+-            g_last_frame_status = std::string("Frame error: ") + e.what();
+-        }
+-    }
+-
++            g_last_frame_status = std::string("FAIL FRAME: ") + e.what();
++            g_engine_ready = false;
++            LOGE("%s", g_last_frame_status.c_str());
++        }
++    }
++
++    if (g_exit_requested.exchange(false)) {
++        g_engine_ready = false;
++        jclass cls = env->GetObjectClass(g_host_activity_ref);
++        jmethodID exit = env->GetMethodID(cls, "onGameExitRequested", "()V");
++        if (exit) env->CallVoidMethod(g_host_activity_ref, exit);
++        env->DeleteLocalRef(cls);
++    }
++    // Normal play avoids formatting and allocating a JNI status string per frame.
++    // Actual failures remain visible even when diagnostics are disabled.
++    if (wantStatus == JNI_FALSE && g_last_frame_status.find("FAIL ") != 0) return nullptr;
+     const auto& diag = g_gles_bridge.diagnostics();
+     if (g_frame_counter == 1) {
+         LOGI("[MILESTONE 8/9] First frame rendered: DrawArrays=%u, Ortho=[%.0f, %.0f, %.0f, %.0f]",
+@@ -1165,7 +1462,7 @@
+              "Viewport: %dx%d | State: %d.%d (Pop: %d)\n"
+              "DrawArrays: %u | TexBinds: %u (Tex: %u)\n"
+              "Touch Rx/Tx: %u/%u | Last: t=%d raw=(%d,%d) game=(%d,%d)\n"
+-             "Ortho: [%.0f, %.0f, %.0f, %.0f]\n"
++             "Ortho: [%.0f, %.0f, %.0f, %.0f] | GL error: 0x%x\n"
+              "Status: %s",
+              static_cast<unsigned long long>(g_frame_counter),
+              g_gles_bridge.gles_provider_name(),
+@@ -1181,6 +1478,7 @@
+              g_last_touch_game_x, g_last_touch_game_y,
+              diag.last_ortho_left, diag.last_ortho_right,
+              diag.last_ortho_bottom, diag.last_ortho_top,
++             diag.last_gl_error,
+              g_last_frame_status.c_str());
+ 
+     return env->NewStringUTF(status_buf);
+@@ -1216,23 +1514,14 @@
+     }
+     g_last_touch_type = event_type;
+ 
+-    // Coordinate space mapping:
+-    // Map from active viewport (5:3 centered pillarbox or fullscreen stretch) to 400x240 game coordinates:
++    // Use the same expanded logical canvas as the game and the GLES viewport.
+     int32_t vp_x = 0, vp_y = 0, vp_w = 0, vp_h = 0;
+     g_gles_bridge.get_active_viewport(vp_x, vp_y, vp_w, vp_h);
+-    int32_t game_x = 0;
+-    int32_t game_y = 0;
+-    if (vp_w > 0 && vp_h > 0) {
+-        game_x = ((raw_x_int - vp_x) * 400) / vp_w;
+-        game_y = ((raw_y_int - vp_y) * 240) / vp_h;
+-    }
+-    if (game_x < 0) game_x = 0;
+-    if (game_x > 399) game_x = 399;
+-    if (game_y < 0) game_y = 0;
+-    if (game_y > 239) game_y = 239;
++    int32_t game_x = hl5::map_display_coordinate(raw_x_int, vp_x, vp_w, g_logical_w);
++    int32_t game_y = hl5::map_display_coordinate(raw_y_int, vp_y, vp_h, g_logical_h);
+     g_last_touch_game_x = game_x;
+     g_last_touch_game_y = game_y;
+-    if (!g_engine_ready || g_km_instance == 0) {
++    if (!g_engine_ready || g_guest_paused || g_km_instance == 0) {
+         return;
+     }
+ 
+@@ -1246,62 +1535,7 @@
+             // JNI signature: nativeTouchHandleEvent(JNIEnv* env, jobject thiz, jint type, jint x, jint y, jint id)
+             // In Unicorn guest execution:
+             // R0 = jnienv (0), R1 = thiz (0), R2 = type, R3 = x
+-            uint32_t game_obj = 0;
+-            g_native_engine.read_memory(0x40164368, &game_obj, 4);
+-            uint32_t active_vt = 0;
+-            if (game_obj >= 0x40000000) {
+-                uint32_t st_ptr = 0;
+-                g_native_engine.read_memory(game_obj + 0x27c, &st_ptr, 4);
+-                if (st_ptr >= 0x40000000) {
+-                    g_native_engine.read_memory(st_ptr, &active_vt, 4);
+-                }
+-            }
+-
+-            // In StateGame (vtable 0x40163860), ensure the virtual D-Pad never locks on a stale pointerId
+-            // and immediately triggers directional movement (0x15 MOVE) on initial D-Pad press (0x13 DOWN):
+-            if (active_vt == 0x40163860 && game_obj >= 0x40000000) {
+-                if (event_type == 0x13 && game_x < 140 && game_y > 100) {
+-                    uint8_t zero = 0;
+-                    g_native_engine.write_memory(game_obj + 293, &zero, 1);
+-                    g_native_engine.call_function(touch_sym, {g_jnienv32_ptr, g_thiz_handle,
+-                                                              0x13,
+-                                                              static_cast<uint32_t>(game_x),
+-                                                              static_cast<uint32_t>(game_y),
+-                                                              static_cast<uint32_t>(pointerId)});
+-                    g_native_engine.call_function(touch_sym, {g_jnienv32_ptr, g_thiz_handle,
+-                                                              0x15,
+-                                                              static_cast<uint32_t>(game_x),
+-                                                              static_cast<uint32_t>(game_y),
+-                                                              static_cast<uint32_t>(pointerId)});
+-                    g_touch_events_dispatched += 2;
+-                    return;
+-                } else if (event_type == 0x14) {
+-                    uint8_t active_joy = 0;
+-                    int8_t joy_pid = -1;
+-                    g_native_engine.read_memory(game_obj + 293, &active_joy, 1);
+-                    g_native_engine.read_memory(game_obj + 292, &joy_pid, 1);
+-                    g_native_engine.call_function(touch_sym, {g_jnienv32_ptr, g_thiz_handle,
+-                                                              0x14,
+-                                                              static_cast<uint32_t>(game_x),
+-                                                              static_cast<uint32_t>(game_y),
+-                                                              static_cast<uint32_t>(pointerId)});
+-                    // If the analog stick was active and this release is on the left side or matches joy_pid, ensure clean release
+-                    if (active_joy != 0 && (pointerId == joy_pid || game_x < 160)) {
+-                        if (pointerId != joy_pid && joy_pid >= 0) {
+-                            g_native_engine.call_function(touch_sym, {g_jnienv32_ptr, g_thiz_handle,
+-                                                                      0x14,
+-                                                                      static_cast<uint32_t>(game_x),
+-                                                                      static_cast<uint32_t>(game_y),
+-                                                                      static_cast<uint32_t>(joy_pid)});
+-                        }
+-                        uint8_t zero = 0;
+-                        g_native_engine.write_memory(game_obj + 293, &zero, 1);
+-                    }
+-                    g_touch_events_dispatched++;
+-                    return;
+-                }
+-            }
+-
++            // Forward original press/move/release without forcing a D-pad setting.
+             g_native_engine.call_function(touch_sym, {g_jnienv32_ptr, g_thiz_handle,
+                                                       static_cast<uint32_t>(event_type),
+                                                       static_cast<uint32_t>(game_x),
+@@ -1314,52 +1548,32 @@
+     }
+ }
+ JNIEXPORT void JNICALL
+-Java_co_kr_eamobile_hl5_runner_MainActivity_nativeSetStretchMode(
+-    JNIEnv* /*env*/,
+-    jobject /*thiz*/,
+-    jboolean stretch) {
+-    g_gles_bridge.set_stretch_mode(stretch != JNI_FALSE);
++Java_co_kr_eamobile_hl5_runner_MainActivity_nativeOnPause(JNIEnv*, jobject) {
++    std::lock_guard<std::mutex> lock(g_engine_mutex);
++    g_resume_requested = false;
++    if (g_engine_ready && !g_guest_paused) {
++        try {
++            uint32_t pause = g_elf_loader.find_symbol("Java_co_kr_eamobile_CletEntry_nativePauseApp");
++            if (!pause) throw std::runtime_error("Missing target pause entry point");
++            g_native_engine.call_function(pause, {g_jnienv32_ptr, g_thiz_handle});
++            g_guest_paused = true;
++        } catch (const std::exception& e) {
++            g_engine_ready = false;
++            g_last_frame_status = std::string("FAIL PAUSE: ") + e.what();
++        }
++    }
+ }
+ 
+ JNIEXPORT void JNICALL
+-Java_co_kr_eamobile_hl5_runner_MainActivity_nativeOnPause(
+-    JNIEnv* /*env*/,
+-    jobject /*thiz*/) {
+-    LOGI("nativeOnPause invoked from UI thread");
++Java_co_kr_eamobile_hl5_runner_MainActivity_nativeOnResume(JNIEnv*, jobject) {
+     std::lock_guard<std::mutex> lock(g_engine_mutex);
+-    if (g_engine_ready && g_km_instance != 0) {
+-        try {
+-            uint32_t deinit_sym = g_elf_loader.find_symbol("_ZN18MIDASKernelManager14deinit2DScreenEv");
+-            if (deinit_sym != 0) {
+-                g_native_engine.call_function(deinit_sym, {g_km_instance});
+-            }
+-        } catch (const std::exception& e) {
+-            LOGW("nativeOnPause deinit exception: %s", e.what());
+-        }
+-    }
+-}
+-
+-JNIEXPORT void JNICALL
+-Java_co_kr_eamobile_hl5_runner_MainActivity_nativeOnResume(
+-    JNIEnv* /*env*/,
+-    jobject /*thiz*/) {
+-    LOGI("nativeOnResume invoked from UI thread");
+-    std::lock_guard<std::mutex> lock(g_engine_mutex);
+-    if (g_engine_ready && g_km_instance != 0) {
+-        try {
+-            uint32_t init_sym = g_elf_loader.find_symbol("_ZN18MIDASKernelManager12init2DScreenEv");
+-            if (init_sym != 0) {
+-                g_native_engine.call_function(init_sym, {g_km_instance});
+-            }
+-        } catch (const std::exception& e) {
+-            LOGW("nativeOnResume init exception: %s", e.what());
+-        }
+-    }
++    // queueEvent can run before EGL is current. Resume in onDrawFrame instead.
++    g_resume_requested = true;
+ }
+ 
+ JNIEXPORT void JNICALL
+ Java_co_kr_eamobile_hl5_runner_MainActivity_nativeOnDestroy(
+-    JNIEnv* /*env*/,
++    JNIEnv* env,
+     jobject /*thiz*/) {
+     LOGI("nativeOnDestroy invoked from UI thread");
+     std::lock_guard<std::mutex> lock(g_engine_mutex);
+@@ -1368,5 +1582,10 @@
+     } catch (...) {}
+     g_engine_ready = false;
+     g_km_instance = 0;
++    g_guest_paused = false;
++    if (g_host_activity_ref) {
++        env->DeleteGlobalRef(g_host_activity_ref);
++        g_host_activity_ref = nullptr;
++    }
+ }
+ } // extern "C"
+--- a/app/src/main/java/co/kr/eamobile/hl5/runner/MainActivity.java
++++ b/app/src/main/java/co/kr/eamobile/hl5/runner/MainActivity.java
+@@ -12,10 +12,12 @@
+ 
+ public class MainActivity extends Activity implements GLSurfaceView.Renderer {
+     private static final String TAG = "HL5_Runner";
++    private static boolean nativeLibraryLoaded = false;
+ 
+     static {
+         try {
+             System.loadLibrary("hl5_arm64_bridge");
++            nativeLibraryLoaded = true;
+             Log.i(TAG, "Successfully loaded native library libhl5_arm64_bridge.so");
+         } catch (UnsatisfiedLinkError e) {
+             Log.e(TAG, "Failed to load native library libhl5_arm64_bridge.so: " + e.getMessage());
+@@ -24,11 +26,16 @@
+ 
+     private GLSurfaceView glSurfaceView;
+     private TextView overlayTextView;
+-    private TextView aspectToggleBtn;
++    private TextView copyStatusBtn;
++    private volatile String latestStatus = "Preparing original target assets...";
+     private String internalPath = "";
+     private String externalPath = "";
+     private int frameCount = 0;
+-    private boolean isStretchMode = false;
++    private boolean debugEnabled = false;
++    private boolean surfaceNeedsInit = true;
++    private boolean exitRequested = false;
++    private boolean activityResumed=false,filesPrepared=false;
++
+ 
+     // Audio Bridge (MediaPlayer for BGM, SoundPool for SFX)
+     private java.io.File vfsFile;
+@@ -42,71 +49,56 @@
+     private boolean bgmWasPlayingOnPause = false;
+ 
+     private native String nativeRunDiagnosticTests(String internalPath, String externalPath);
+-    private native void nativeOnSurfaceCreated(String internalPath, String externalPath);
++    private native void nativeOnSurfaceCreated(String internalPath, String externalPath, int width, int height, boolean debug);
+     private native void nativeOnSurfaceChanged(int width, int height);
+-    private native String nativeOnDrawFrame();
++    private native String nativeOnDrawFrame(boolean wantStatus);
+     private native void nativeOnTouchEvent(int action, float rawX, float rawY, int pointerId);
+-    private native void nativeSetStretchMode(boolean stretch);
+     private native void nativeOnPause();
+     private native void nativeOnResume();
+     private native void nativeOnDestroy();
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+-        hideSystemUI();
++        debugEnabled = getIntent() != null && getIntent().getBooleanExtra("debug", false);
++        if (!nativeLibraryLoaded) {
++            TextView error = new TextView(this);
++            error.setText("Unable to load the game runtime on this device.");
++            setContentView(error);
++            return;
++        }
++        configureFullscreenWindow();
+         Log.i(TAG, "MainActivity.onCreate() started");
+ 
+-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+-            @Override
+-            public void uncaughtException(Thread thread, Throwable throwable) {
+-                Log.e(TAG, "FATAL CRASH on thread " + thread.getName() + ": " + throwable.getMessage(), throwable);
+-            }
+-        });
+-
+-        try {
+-            java.io.File internalDir = getFilesDir();
+-            java.io.File externalDir = getExternalFilesDir(null);
+-            internalPath = (internalDir != null) ? internalDir.getAbsolutePath() : "/data/data/" + getPackageName() + "/files";
+-            externalPath = (externalDir != null) ? externalDir.getAbsolutePath() : internalPath;
+-            Log.i(TAG, "Storage paths configured: internal=" + internalPath + ", external=" + externalPath);
+-            if (internalDir != null && !internalDir.exists()) internalDir.mkdirs();
+-            if (externalDir != null && !externalDir.exists()) externalDir.mkdirs();
+-            // Extract libHeroesLore5.so and data.vfs.mp3 from assets if not already extracted
+-            if (internalDir != null) {
+-                java.io.File targetSo = new java.io.File(internalDir, "libHeroesLore5.so");
+-                if (!targetSo.exists() || targetSo.length() == 0) {
+-                    try (java.io.InputStream in = getAssets().open("libHeroesLore5.so");
+-                         java.io.FileOutputStream out = new java.io.FileOutputStream(targetSo)) {
+-                        byte[] buf = new byte[16384];
+-                        int len;
+-                        while ((len = in.read(buf)) > 0) {
+-                            out.write(buf, 0, len);
+-                        }
+-                        Log.i(TAG, "Extracted libHeroesLore5.so to " + targetSo.getAbsolutePath());
+-                    } catch (Exception ex) {
+-                        Log.w(TAG, "Asset extraction note (so): " + ex.getMessage());
+-                    }
+-                }
+-
+-                java.io.File targetVfs = new java.io.File(internalDir, "data.vfs.mp3");
+-                if (!targetVfs.exists() || targetVfs.length() == 0) {
+-                    try (java.io.InputStream in = getAssets().open("data.vfs.mp3");
+-                         java.io.FileOutputStream out = new java.io.FileOutputStream(targetVfs)) {
+-                        byte[] buf = new byte[32768];
+-                        int len;
+-                        while ((len = in.read(buf)) > 0) {
+-                            out.write(buf, 0, len);
+-                        }
+-                        Log.i(TAG, "Extracted data.vfs.mp3 to " + targetVfs.getAbsolutePath() + " (" + targetVfs.length() + " bytes)");
+-                    } catch (Exception ex) {
+-                        Log.w(TAG, "Asset extraction note (vfs): " + ex.getMessage());
+-                    }
+-                }
+-                vfsFile = targetVfs;
+-                if (vfsFile.exists()) {
+-                    vfsAudioStream = new java.io.FileInputStream(vfsFile);
+-                }
+-            }
++        FrameLayout loading=new FrameLayout(this);
++        loading.setBackgroundColor(Color.BLACK);
++        TextView message=new TextView(this);
++        message.setText("Memuat game…"); message.setTextColor(Color.WHITE);
++        message.setGravity(android.view.Gravity.CENTER);
++        loading.addView(message,new FrameLayout.LayoutParams(-1,-1));
++        setContentView(loading); loading.post(this::hideSystemUI);
++        new Thread(() -> {
++            try {
++                java.io.File internalDir=getFilesDir(),externalDir=getExternalFilesDir(null);
++                if (internalDir==null) throw new java.io.IOException("Internal storage unavailable");
++                internalDir.mkdirs(); if (externalDir!=null) externalDir.mkdirs();
++                internalPath=internalDir.getAbsolutePath();
++                externalPath=externalDir!=null ? externalDir.getAbsolutePath() : internalPath;
++                TargetAssets.install(this,internalDir);
++                vfsFile=new java.io.File(internalDir,"data.vfs.mp3");
++                runOnUiThread(() -> {
++                    if (isFinishing() || isDestroyed()) return;
++                    filesPrepared=true;
++                    if (activityResumed) startGameView();
++                });
++            } catch (Exception error) {
++                Log.e(TAG,"Game preparation failed",error);
++                runOnUiThread(() -> { if (!isFinishing() && !isDestroyed()) message.setText("Unable to prepare game files. "+error.getMessage()); });
++            }
++        },"HL5-assets").start();
++    }
++
++    private void startGameView() {
++        if (glSurfaceView!=null || !filesPrepared || !activityResumed || isFinishing() || isDestroyed()) return;
+             android.media.AudioAttributes audioAttrs = new android.media.AudioAttributes.Builder()
+                 .setUsage(android.media.AudioAttributes.USAGE_GAME)
+                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+@@ -116,13 +108,12 @@
+                 .setAudioAttributes(audioAttrs)
+                 .build();
+             bgmPlayer = new android.media.MediaPlayer();
+-        } catch (Throwable t) {
+-            Log.e(TAG, "Storage dir init error: " + t.getMessage());
+-        }
+-
+         FrameLayout layout = new FrameLayout(this);
++        layout.setBackgroundColor(Color.BLACK);
++        layout.setFitsSystemWindows(false);
+         glSurfaceView = new GLSurfaceView(this);
+         glSurfaceView.setEGLConfigChooser(8, 8, 8, 8, 16, 0);
++        glSurfaceView.setPreserveEGLContextOnPause(true);
+         glSurfaceView.setRenderer(this);
+         glSurfaceView.setOnTouchListener(new android.view.View.OnTouchListener() {
+             @Override
+@@ -134,7 +125,7 @@
+                     // Dispatch MOVE for all active pointers (supports multi-touch D-Pad + Attack)
+                     for (int i = 0; i < pointerCount; i++) {
+                         int pid = event.getPointerId(i);
+-                        nativeOnTouchEvent(2, event.getX(i), event.getY(i), pid);
++                        dispatchTouch(2, event.getX(i), event.getY(i), pid);
+                     }
+                     return true;
+                 }
+@@ -142,7 +133,7 @@
+                 if (actionMasked == android.view.MotionEvent.ACTION_CANCEL) {
+                     for (int i = 0; i < pointerCount; i++) {
+                         int pid = event.getPointerId(i);
+-                        nativeOnTouchEvent(1, event.getX(i), event.getY(i), pid);
++                        dispatchTouch(1, event.getX(i), event.getY(i), pid);
+                     }
+                     return true;
+                 }
+@@ -154,10 +145,10 @@
+ 
+                 if (actionMasked == android.view.MotionEvent.ACTION_DOWN ||
+                     actionMasked == android.view.MotionEvent.ACTION_POINTER_DOWN) {
+-                    nativeOnTouchEvent(0, x, y, pointerId);
++                    dispatchTouch(0, x, y, pointerId);
+                 } else if (actionMasked == android.view.MotionEvent.ACTION_UP ||
+                            actionMasked == android.view.MotionEvent.ACTION_POINTER_UP) {
+-                    nativeOnTouchEvent(1, x, y, pointerId);
++                    dispatchTouch(1, x, y, pointerId);
+                 }
+                 return true;
+             }
+@@ -167,48 +158,50 @@
+         overlayTextView.setBackgroundColor(Color.argb(180, 0, 0, 0));
+         overlayTextView.setTextSize(11.0f);
+         overlayTextView.setPadding(16, 12, 16, 12);
+-        overlayTextView.setText("HL5 ARM64 Runner v1.2 initializing...");
++        overlayTextView.setText(latestStatus);
++        overlayTextView.setTextIsSelectable(true);
+         FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
+             FrameLayout.LayoutParams.WRAP_CONTENT,
+             FrameLayout.LayoutParams.WRAP_CONTENT,
+             android.view.Gravity.BOTTOM | android.view.Gravity.LEFT);
+         overlayParams.setMargins(20, 20, 20, 20);
+         overlayTextView.setLayoutParams(overlayParams);
+-        overlayTextView.setOnClickListener(new android.view.View.OnClickListener() {
+-            @Override
+-            public void onClick(android.view.View v) {
+-                overlayTextView.setVisibility(android.view.View.GONE);
+-            }
++        copyStatusBtn = new TextView(this);
++        copyStatusBtn.setTextColor(Color.WHITE);
++        copyStatusBtn.setBackgroundColor(Color.argb(220, 20, 20, 20));
++        copyStatusBtn.setTextSize(14.0f);
++        copyStatusBtn.setPadding(28, 16, 28, 16);
++        copyStatusBtn.setText("Salin status");
++        FrameLayout.LayoutParams copyParams = new FrameLayout.LayoutParams(
++            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
++            android.view.Gravity.TOP | android.view.Gravity.LEFT);
++        copyParams.setMargins(24, 24, 24, 24);
++        copyStatusBtn.setLayoutParams(copyParams);
++        copyStatusBtn.setOnClickListener(view -> {
++            android.content.ClipboardManager clipboard = (android.content.ClipboardManager)
++                getSystemService(android.content.Context.CLIPBOARD_SERVICE);
++            if (clipboard != null) clipboard.setPrimaryClip(
++                android.content.ClipData.newPlainText("HL5 startup status", latestStatus));
++            android.widget.Toast.makeText(this, "Status disalin", android.widget.Toast.LENGTH_SHORT).show();
+         });
+-
+-        aspectToggleBtn = new TextView(this);
+-        aspectToggleBtn.setTextColor(Color.GREEN);
+-        aspectToggleBtn.setBackgroundColor(Color.argb(220, 20, 20, 20));
+-        aspectToggleBtn.setTextSize(14.0f);
+-        aspectToggleBtn.setPadding(28, 16, 28, 16);
+-        aspectToggleBtn.setText("[ Rasio: 5:3 ]");
+-        aspectToggleBtn.setElevation(100.0f);
+-        FrameLayout.LayoutParams btnParams = new FrameLayout.LayoutParams(
+-            FrameLayout.LayoutParams.WRAP_CONTENT,
+-            FrameLayout.LayoutParams.WRAP_CONTENT,
+-            android.view.Gravity.TOP | android.view.Gravity.LEFT);
+-        btnParams.setMargins(24, 24, 24, 24);
+-        aspectToggleBtn.setLayoutParams(btnParams);
+-        aspectToggleBtn.setOnClickListener(new android.view.View.OnClickListener() {
+-            @Override
+-            public void onClick(android.view.View v) {
+-                isStretchMode = !isStretchMode;
+-                aspectToggleBtn.setText(isStretchMode ? "[ Rasio: FULL ]" : "[ Rasio: 5:3 ]");
+-                nativeSetStretchMode(isStretchMode);
+-            }
++        layout.addView(glSurfaceView);
++        overlayTextView.setVisibility(debugEnabled ? android.view.View.VISIBLE : android.view.View.GONE);
++        copyStatusBtn.setVisibility(debugEnabled ? android.view.View.VISIBLE : android.view.View.GONE);
++        layout.addView(overlayTextView);
++        layout.addView(copyStatusBtn);
++        layout.setOnApplyWindowInsetsListener((view, insets) -> {
++            // Draw the world behind bars/cutouts; do not shrink the game surface.
++            applyFullscreenInsets(view);
++            return insets;
+         });
+-
+-        layout.addView(glSurfaceView);
+-        layout.addView(overlayTextView);
+-        layout.addView(aspectToggleBtn);
+-        aspectToggleBtn.bringToFront();
+         setContentView(layout);
+-        hideSystemUI();
++        layout.post(this::hideSystemUI);
++    }
++
++    private void dispatchTouch(final int action, final float x, final float y, final int id) {
++        if (glSurfaceView != null) {
++            glSurfaceView.queueEvent(() -> nativeOnTouchEvent(action, x, y, id));
++        }
+     }
+ 
+     // --- Audio Bridge Callbacks (Invoked from native_runner.cpp via JNI) ---
+@@ -379,53 +372,97 @@
+         }
+     }
+ 
++    private void configureFullscreenWindow() {
++        android.view.Window window = getWindow();
++        if (window == null) return;
++        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
++        window.setStatusBarColor(Color.BLACK);
++        window.setNavigationBarColor(Color.BLACK);
++        if (android.os.Build.VERSION.SDK_INT >= 28) {
++            android.view.WindowManager.LayoutParams attributes = window.getAttributes();
++            attributes.layoutInDisplayCutoutMode = android.os.Build.VERSION.SDK_INT >= 30
++                ? android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
++                : android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
++            window.setAttributes(attributes);
++        }
++        if (android.os.Build.VERSION.SDK_INT >= 29) window.setNavigationBarContrastEnforced(false);
++        if (android.os.Build.VERSION.SDK_INT >= 30) window.setDecorFitsSystemWindows(false);
++    }
++
++    private void applyFullscreenInsets(android.view.View view) {
++        view.setPadding(0, 0, 0, 0);
++    }
++
+     private void hideSystemUI() {
+-        android.view.View decorView = getWindow().getDecorView();
+-        decorView.setSystemUiVisibility(
+-            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+-            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+-            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+-            | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+-            | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+-            | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
++        android.view.Window window = getWindow();
++        if (window == null) return;
++        android.view.View decorView = window.peekDecorView();
++        if (decorView == null || !decorView.isAttachedToWindow()) return;
++
++        if (android.os.Build.VERSION.SDK_INT >= 30) {
++            android.view.WindowInsetsController controller = decorView.getWindowInsetsController();
++            if (controller == null) return;
++            controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
++            controller.hide(android.view.WindowInsets.Type.systemBars());
++        } else {
++            decorView.setSystemUiVisibility(
++                android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
++                | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
++                | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
++                | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
++                | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
++                | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
++        }
+     }
+ 
+     @Override
+     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+         Log.i(TAG, "GLThread: onSurfaceCreated entered");
+-        nativeOnSurfaceCreated(internalPath, externalPath);
++        onNativeStatus("Surface created; starting target ARM32 engine...");
++        surfaceNeedsInit = true;
+     }
+ 
+     @Override
+     public void onSurfaceChanged(GL10 gl, int width, int height) {
+         Log.i(TAG, "GLThread: onSurfaceChanged: " + width + "x" + height);
++        if (surfaceNeedsInit) {
++            nativeOnSurfaceCreated(internalPath, externalPath, width, height, debugEnabled);
++            surfaceNeedsInit = false;
++        }
+         nativeOnSurfaceChanged(width, height);
+-        nativeSetStretchMode(isStretchMode);
++        nativeOnResume();
+     }
+ 
+     @Override
+     public void onDrawFrame(GL10 gl) {
+         frameCount++;
+-        final String frameStatus = nativeOnDrawFrame();
+-        if (frameCount == 180) {
+-            runOnUiThread(new Runnable() {
+-                @Override
+-                public void run() {
+-                    overlayTextView.setVisibility(android.view.View.GONE);
+-                }
+-            });
+-        }
+-        if (frameCount <= 5 || frameCount % 60 == 0) {
+-            runOnUiThread(new Runnable() {
+-                @Override
+-                public void run() {
+-                    overlayTextView.setText(frameStatus);
+-                }
+-            });
+-        }
+-    }
++        final String frameStatus = nativeOnDrawFrame(debugEnabled && (frameCount <= 5 || frameCount % 60 == 0));
++        if (frameStatus != null && (frameCount <= 5 || frameCount % 60 == 0)) onNativeStatus(frameStatus);
++    }
++
++    // Diagnostics are opt-in. Actual failures remain visible in normal launches.
++    public void onNativeStatus(final String status) {
++        latestStatus = status;
++        Log.i(TAG, status);
++        runOnUiThread(() -> {
++            if (overlayTextView != null) {
++                overlayTextView.setVisibility(debugEnabled || status.contains("FAIL ")
++                    ? android.view.View.VISIBLE : android.view.View.GONE);
++                overlayTextView.setText(status);
++            }
++        });
++    }
++    public void onGameExitRequested() {
++        runOnUiThread(() -> {
++            if (exitRequested) return;
++            exitRequested = true;
++            finishAndRemoveTask();
++        });
++    }
++
+     @Override
+     protected void onPause() {
++        activityResumed=false;
+         super.onPause();
+         try {
+             if (bgmPlayer != null && bgmPlayer.isPlaying()) {
+@@ -438,16 +475,20 @@
+                 soundPool.autoPause();
+             }
+         } catch (Exception ignored) {}
+-        if (glSurfaceView != null) glSurfaceView.onPause();
+-        nativeOnPause();
++        if (glSurfaceView != null) {
++            glSurfaceView.queueEvent(() -> nativeOnPause());
++            glSurfaceView.onPause();
++        }
+     }
+ 
+     @Override
+     protected void onResume() {
+         super.onResume();
++        activityResumed=true;
+         hideSystemUI();
++        if (filesPrepared && glSurfaceView==null) startGameView();
+         if (glSurfaceView != null) glSurfaceView.onResume();
+-        nativeOnResume();
++        if (glSurfaceView != null) glSurfaceView.queueEvent(() -> nativeOnResume());
+         try {
+             if (bgmPlayer != null && bgmWasPlayingOnPause) {
+                 bgmPlayer.start();
+@@ -475,6 +516,6 @@
+                 vfsAudioStream = null;
+             }
+         } catch (Exception ignored) {}
+-        nativeOnDestroy();
++        if (nativeLibraryLoaded && glSurfaceView != null && isFinishing()) nativeOnDestroy();
+     }
+ }
+--- /dev/null
++++ b/app/src/main/java/co/kr/eamobile/hl5/runner/TargetAssets.java
+@@ -0,0 +1,64 @@
++package co.kr.eamobile.hl5.runner;
++import android.content.Context;
++import android.util.AtomicFile;
++import java.io.*;
++import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
++import org.json.JSONObject;
++final class TargetAssets {
++    private static JSONObject readJson(InputStream input) throws Exception {
++        ByteArrayOutputStream out=new ByteArrayOutputStream(); byte[] b=new byte[4096]; int n;
++        while((n=input.read(b))!=-1) out.write(b,0,n);
++        return new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));
++    }
++    private static String hex(byte[] bytes) {
++        char[] chars="0123456789abcdef".toCharArray(),out=new char[bytes.length*2];
++        for(int i=0;i<bytes.length;i++){out[i*2]=chars[(bytes[i]&255)>>>4];out[i*2+1]=chars[bytes[i]&15];}
++        return new String(out);
++    }
++    private static String digest(InputStream input) throws Exception {
++        MessageDigest sha=MessageDigest.getInstance("SHA-256");byte[] b=new byte[65536];int n;
++        while((n=input.read(b))!=-1)sha.update(b,0,n);
++        return hex(sha.digest());
++    }
++    static boolean cacheMatches(File file,JSONObject stamp,String hash) {
++        return stamp!=null && file.isFile() && hash.equals(stamp.optString("sha256"))
++            && file.length()==stamp.optLong("length",-1) && file.lastModified()==stamp.optLong("modified",-1);
++    }
++    static synchronized void install(Context context,File directory) throws Exception {
++        if(directory==null)throw new IOException("Internal storage unavailable");
++        JSONObject expected;
++        try(InputStream input=context.getAssets().open("target-assets.json")){expected=readJson(input);}
++        AtomicFile cache=new AtomicFile(new File(directory,"runner-assets-verified.json"));
++        JSONObject stamps;
++        try(InputStream input=cache.openRead()){stamps=readJson(input);}
++        catch(Exception missing){stamps=new JSONObject();}
++        boolean changed=false;
++        for(String name:new String[]{"libHeroesLore5.so","data.vfs.mp3"}){
++            String hash=expected.getString(name);
++            AtomicFile target=new AtomicFile(new File(directory,name));File base=target.getBaseFile();
++            if(!new File(base.getPath()+".bak").exists() && !new File(base.getPath()+".new").exists()
++                && cacheMatches(base,stamps.optJSONObject(name),hash))continue;
++            boolean verified=false;
++            try(InputStream input=target.openRead()){verified=hash.equals(digest(input));}
++            catch(FileNotFoundException missing){}
++            if(!verified){
++                FileOutputStream output=null;
++                try(InputStream input=context.getAssets().open(name)){
++                    output=target.startWrite();MessageDigest sha=MessageDigest.getInstance("SHA-256");
++                    byte[] b=new byte[65536];int n;
++                    while((n=input.read(b))!=-1){output.write(b,0,n);sha.update(b,0,n);}
++                    if(!hash.equals(hex(sha.digest())))throw new IOException("Asset fingerprint mismatch: "+name);
++                    target.finishWrite(output);output=null;
++                }finally{if(output!=null)target.failWrite(output);}
++            }
++            stamps.put(name,new JSONObject().put("sha256",hash).put("length",base.length()).put("modified",base.lastModified()));
++            changed=true;
++        }
++        if(changed){
++            FileOutputStream output=null;
++            try{output=cache.startWrite();output.write(stamps.toString().getBytes(StandardCharsets.UTF_8));cache.finishWrite(output);output=null;}
++            finally{if(output!=null)cache.failWrite(output);}
++        }
++    }
++}
+--- /dev/null
++++ b/app/src/main/res/values-v31/styles.xml
+@@ -0,0 +1,5 @@
++<resources><style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
++<item name="android:windowBackground">@android:color/black</item>
++<item name="android:colorBackground">@android:color/black</item>
++<item name="android:windowSplashScreenBackground">@android:color/black</item>
++</style></resources>
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1 +1 @@
+-<resources><string name="app_name">Heroes Lore 5</string></resources>
++<resources><string name="app_name">Heroes Lore 5 Target Test 8</string></resources>
+--- /dev/null
++++ b/app/src/main/res/values/styles.xml
+@@ -0,0 +1,5 @@
++<resources><style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
++<item name="android:windowBackground">@android:color/black</item>
++<item name="android:colorBackground">@android:color/black</item>
++
++</style></resources>

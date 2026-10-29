@@ -1,13 +1,323 @@
 {
   "schema_version": 1,
-  "status": "unverified",
-  "apk_sha256": null,
-  "package_name": null,
-  "version_code": null,
-  "version_name": null,
-  "runtime_kind": null,
-  "native_libraries": [],
-  "resource_archives": [],
+  "status": "statically_profiled_runtime_unverified",
+  "apk_sha256": "5fcddd17f1a4e3c48957c142aa2cf7738ef1b35775b48eecde43eb43d383403e",
+  "package_name": "co.kr.eamobile.HeroesLore5",
+  "version_code": 10100,
+  "version_name": "01.01.00",
+  "manifest_verification": "Android SDK aapt2 dump badging",
+  "runtime_kind": "arm32_guest_in_arm32_or_arm64_unicorn_runner",
+  "native_libraries": [
+    {
+      "path": "lib/armeabi/libHeroesLore5.so",
+      "packaged_abi": "armeabi",
+      "sha256": "8ba8ec977b6dd028f1c71efb3492f857c485ecfbde67a9f6f0e5dc2125d491ca",
+      "elf": {
+        "valid_header": true,
+        "bits": 32,
+        "machine": "ARM",
+        "load_segment_alignments": [
+          4096,
+          4096
+        ]
+      },
+      "role": "immutable_arm32_guest_asset_not_android_host_library"
+    }
+  ],
+  "resource_archives": [
+    {
+      "path": "assets/data.vfs.mp3",
+      "bytes": 16410306,
+      "compressed_bytes": 16410306,
+      "zip_compression": 0,
+      "sha256": "0b60afce3d32bfe68419befad327f2e179752dc874db711a876b0c2bf7bdec38"
+    }
+  ],
   "verified_patches": [],
-  "notes": "Populate only after inspecting the actual target APK. Reference offsets are not a target profile."
+  "reference_zip_sha256": "e9fe429538c9c64e40facdd72bcbd043d659e32fe391f1e36cfed036c9fc7a56",
+  "runner_dependency": {
+    "unicorn_static_sha256": "142f047a9e9e9a8b1ca99ada73c3f268036d48a3a3062422e52e4638167baef4",
+    "unicorn_arm32_static_sha256": "257d1c7a5a2d4381d31a53ec91914df26930f9766c49ea2601a9d3d3e6ccfd4a",
+    "arm32_source_archive_sha256": "4caf20f161004a9a5fc8eeff5f014a16495f9af4c3dc022caa747c13bae78ced",
+    "arm32_source_tag": "unicorn-engine/unicorn 2.1.2",
+    "arm32_build_note": "NDK r28c/API26 Release, guest CPU arm only; optional archive .o symlink replaced by byte-identical copy for Windows. All source/binaries local."
+  },
+  "runtime_profile": {
+    "gv_address": 1483320,
+    "menu_vtable_address": 1434568,
+    "state_offset": 580,
+    "offline_flag_offset": 141,
+    "sms_flag_offset": 42,
+    "required_symbols": {
+      "gv": {
+        "address": 1483320,
+        "bytes": 7592
+      },
+      "_ZTV13StateMainMenu": {
+        "address": 1434568,
+        "bytes": 156
+      },
+      "_ZTV9StateGame": {
+        "address": 1433928,
+        "bytes": 156
+      },
+      "_Z12mainStateMgrv": {
+        "address": 623664,
+        "bytes": 216,
+        "sha256": "9bc722b86ba3524748fe914207aba5d3b7226cc708e3261fc4e65eb168d21449"
+      },
+      "_ZN9BaseState11ChangeStateEia": {
+        "address": 272440,
+        "bytes": 132,
+        "sha256": "fc1e08a393f1775c825e047546c296b72b1d2071dea9c5f84b6f81c13d249fe2"
+      },
+      "_ZN13StateMainMenu8KeyTitleEi": {
+        "address": 1179284,
+        "bytes": 180,
+        "sha256": "2d78d4256e060c759790007ee02d2a60c5c5fbb79e51c59187d58ff72e0d50c2"
+      },
+      "_ZN13StateMainMenu8SetStateEaa": {
+        "address": 1172728,
+        "bytes": 112,
+        "sha256": "fa1301a4ba8d36730cc8a22f4fc48586c200a7252f5392c160e03fc4ce691e23"
+      },
+      "_ZN13StateMainMenu11SetSubStateEa": {
+        "address": 1145464,
+        "bytes": 68,
+        "sha256": "a333f707548b9f1aa4004a3a289511667d0ac76825bec5f4eb18f7392a936339"
+      },
+      "_ZN8CommonUi17LoadLocalSaveDataEv": {
+        "address": 476136,
+        "bytes": 288,
+        "sha256": "08e05716244482aac6b208283623740d7317748de86a11d19cf451447c0d6e07"
+      },
+      "_ZN18MIDASKernelManager12init2DScreenEv": {
+        "address": 1363912,
+        "bytes": 212,
+        "sha256": "147ee839382688632ae2f4f8bea634b337042943839d13864d5d91273cd0cf69"
+      },
+      "Java_co_kr_eamobile_CletEntry_nativeStartApp": {
+        "address": 1349696,
+        "bytes": 60,
+        "sha256": "40c80b8327daed1acfac380b47f05a130f6dba57d522a41f24c34cda26068b05"
+      },
+      "Java_co_kr_eamobile_CletEntry_nativeInitDisplay": {
+        "address": 1350108,
+        "bytes": 212,
+        "sha256": "bf5a4ff090216a54c9bc1e31fb3534821f65941f917cd30f404af85443f7344b"
+      },
+      "Java_co_kr_eamobile_CletEntry_nativePauseApp": {
+        "address": 1349548,
+        "bytes": 76,
+        "sha256": "19e869bd4250783eda81bac49826a1b65e863e423c41341f6628d3d50512fca7"
+      },
+      "Java_co_kr_eamobile_CletEntry_nativeResumeApp": {
+        "address": 1349624,
+        "bytes": 72,
+        "sha256": "ed21dd13ac2f8f073e529d9ab7ede7595400797c12938cff6fd4f67b58420995"
+      },
+      "_ZN18MIDASKernelManager14createTexturesEv": {
+        "address": 1363516,
+        "bytes": 260,
+        "sha256": "81428fad00c2dc19307393d21f968d533174a13e185251cde0f9f6501f0a28a5"
+      },
+      "_ZN14AndroidService7exitAppEv": {
+        "address": 1353096,
+        "bytes": 56,
+        "sha256": "2b341894a5925a332b8ee2daa209422a47ac414aab132055da9c430b921a6469"
+      },
+      "_Z26internalGrpCopyFrameBufferiiiiiiiiP14_MC_GrpContexth": {
+        "address": 1330396,
+        "bytes": 912,
+        "sha256": "26dc166dcbb174cd6551b52627b8bd531ba9272c62d3dcbdf7ad4dd323739240"
+      },
+      "_ZN7Graphic13FillRectAlphaEiiiiihi": {
+        "address": 321156,
+        "bytes": 680,
+        "sha256": "eba4b430f242ef3c903d4688ab3d5302516d422d92be3225b733f15c8a904e7e"
+      },
+      "_ZN7Graphic22DrawImageMirrorClip565EiiiiiP8GbmImageiihi": {
+        "address": 340600,
+        "bytes": 2500,
+        "sha256": "37c39bb1ad129524abf0dfcaa64f51913e78fd97ce817a85282d081c25391af7"
+      },
+      "_ZN7Graphic10CalcAnchorEPiS0_iii": {
+        "address": 324676,
+        "bytes": 104,
+        "sha256": "fe14053af02ea00e8910867dc9fbf179260196ff81c55d7dfd92aa3a77acc73c"
+      },
+      "_ZN7Graphic11CalcClipLCDEPiS0_S0_S0_S0_S0_iiiih": {
+        "address": 323240,
+        "bytes": 1236,
+        "sha256": "06e48c0f22e54330d2bf518d135c64bffc733b9dda59352b48a920f2dea574dd"
+      },
+      "_ZN15FrameBufferInfoC1Ei": {
+        "address": 320576,
+        "bytes": 72,
+        "sha256": "f0b563a2cbe3787f5f62baa59e9daffc7f47ca79a883360e05358820c8e17b3d"
+      },
+      "_ZN8GbmImage11GetColorBitEv": {
+        "address": 530024,
+        "bytes": 8,
+        "sha256": "6983c0fc521dba307248deede95277a7cabee251761e6c1d08a79d7b87e48a8d"
+      },
+      "_ZN8GbmImage8GetWidthEv": {
+        "address": 530040,
+        "bytes": 8,
+        "sha256": "d031644e3b7652bd8599c6fc8f582bd7aaa3494cc4a5dc5af9d2dc4031c461be"
+      },
+      "_ZN8GbmImage9GetHeightEv": {
+        "address": 530048,
+        "bytes": 8,
+        "sha256": "6d5a4840c44a1411d11982bfb3c00d1e3fc7556a167a7d29e4c38df0312d171d"
+      },
+      "_ZN8GbmImage12GetPaletteIDEv": {
+        "address": 530056,
+        "bytes": 8,
+        "sha256": "fdc1710f100ccf2b13937a27e7f23ccda5a1973826c8d8f3b7db09e6988fe8a4"
+      },
+      "_ZN8GbmImage10GetPixelIDEv": {
+        "address": 530064,
+        "bytes": 8,
+        "sha256": "687b83fbb1b1084c4b61325547b5f8fadfb354f0d8aa39fcef5ecb6ba6b86ed1"
+      },
+      "SKIP_COLOR": {
+        "address": 1483316,
+        "bytes": 4
+      },
+      "_ZN7Graphic28ChangeFrameBufferBlending565Eiihh": {
+        "address": 327912,
+        "bytes": 476,
+        "sha256": "9fba739d4693baf19a9fda70d1980e0f52666d8badbeee6873b72ef7e4f33a4d"
+      },
+      "_ZN7Graphic16FillRectBlendingEiiiiihhi": {
+        "address": 322060,
+        "bytes": 916,
+        "sha256": "119d6bb6ead57c88853c72d91f2ab3f5468b0413607069b9c0bf4ed410264693"
+      },
+      "MC_grpFillRect": {
+        "address": 1332900,
+        "bytes": 544,
+        "sha256": "a7d32f878f2f49bc0d8f46dfd3c16f50728ad7a03024fa9a984f57a38e1d2a13"
+      },
+      "_ZN18MIDASKernelManager11getInstanceEv": {
+        "address": 1361000,
+        "bytes": 32,
+        "sha256": "95572c3d7dd56853acdf84f5f2dddb9f091d3df7ae953751c259dd228f3997bd"
+      },
+      "_ZN18MIDASKernelManager9getKernelEv": {
+        "address": 1361032,
+        "bytes": 4,
+        "sha256": "379bec29dccd0a93c94826144d7ef6e42fab64ef195a3b8313a16926f66f388f"
+      },
+      "_ZN5BFont8DrawTextEiiiPc": {
+        "address": 268312,
+        "bytes": 96,
+        "sha256": "ad2971a1e18fcc1b411be415b4e9f7f56308a1a85489873df11235474b5f90f3"
+      },
+      "_ZN5BFont8DrawTextEiiiPci": {
+        "address": 268408,
+        "bytes": 100,
+        "sha256": "a4bd4c8132dc68cfc34373ab43cd5b80ab28e46a4b6a0b836a40a825bda32d1f"
+      },
+      "_ZN5BFont8DrawTextEiiiiPci": {
+        "address": 268508,
+        "bytes": 100,
+        "sha256": "c46b6bd43b5a88a41598ca8a9c07d295cd0ece7c8f31bd59f40ce1d5607d7f39"
+      },
+      "_ZN5BFont8DrawTextEiiiPcii": {
+        "address": 269688,
+        "bytes": 108,
+        "sha256": "8b9269f788fd8bbe55a7280ecfcfa9cfc7b6509b9c8ad1bcac8fec07c8eadf19"
+      },
+      "_ZN5BFont13DrawTextFieldEiiiiiPciiii": {
+        "address": 269056,
+        "bytes": 580,
+        "sha256": "867b95cf69702a117841218ba880c8bd2a3090bee6711372ad7b22da9b9aa761"
+      },
+      "_ZN5BFont12GetLineCountEPcii": {
+        "address": 266256,
+        "bytes": 96,
+        "sha256": "ee92aba664705fa4ef340e338cdaa125a1f7bc4944cc8cd743d40161e157f24b"
+      },
+      "_ZN5BFont19GetTextFieldPageLenEiiPc": {
+        "address": 266368,
+        "bytes": 172,
+        "sha256": "fcf93e2d62224609df7b5819869553489ec0fd6f36c9d20267f6d36b43898513"
+      },
+      "_ZN5BFont23IsTextFieldDrawCompleteEiiPciii": {
+        "address": 266540,
+        "bytes": 304,
+        "sha256": "5cab494c1f0e84e645c9fbdda783aa5be47b950d4eac7e406f7b55f4f059bfd7"
+      },
+      "_ZN5BFont8GetWidthEPci": {
+        "address": 265988,
+        "bytes": 32,
+        "sha256": "f2586f06bcfb8674449990f002f4d510b381f6ab049a5b48e31202cc2302117b"
+      },
+      "_ZN5BFont8GetWidthEPciii": {
+        "address": 265776,
+        "bytes": 212,
+        "sha256": "16c2422d05dbf3ffd67a8ba206c5b8f36e04bedf9caafa45094dde5cc2369d1f"
+      },
+      "_ZN5BFont19GetByteLenPrintableEPciiii": {
+        "address": 266020,
+        "bytes": 236,
+        "sha256": "095762e50366bc47536898b55a160358aac3699df09592e4e97dcb54c2268831"
+      },
+      "_ZN7Graphic17ChangeBlendingPalEP8GbmImageihhhh": {
+        "address": 348568,
+        "bytes": 1580,
+        "sha256": "b6986b0ca0fcf888ddfafeb1d4fb99705f005d4b8bd224669b86fabe26a26f57"
+      },
+      "_ZN5BFont12DrawTextLineEiiiiiPcii": {
+        "address": 268608,
+        "bytes": 448,
+        "sha256": "9e4d5a0684a4b65ffd88387826313cf6d7f5f6b04ebbc6ef614cbe18b76180c5"
+      },
+      "_ZN8QuestMgr15DrawQuestStringEssss": {
+        "address": 844652,
+        "bytes": 372,
+        "sha256": "9cd9f5dd711bd3aa627a7d3486c655f1457cbf2ead900b7b4d3bb7b1301b0393"
+      }
+    },
+    "evidence": {
+      "state_offset": "mainStateMgr and BaseState::ChangeState load/store gv+0x244; onStartApp stores the initial state there.",
+      "offline_flag_offset": "StateMainMenu::KeyTitle reads gv+0x8d before entering its offline branch.",
+      "sms_flag_offset": "CommonUi::LoadLocalSaveData loads the saved SMS response into gv+0x2a.",
+      "state_fields": "StateMainMenu::SetState writes state/substate at +0xc/+0xd; constructor initializes popup at +0x14.",
+      "viewport_fields": "MIDASKernelManager::init2DScreen reads +0x624/+0x628.",
+      "vtable_bias": "StateMainMenu constructor stores resolved vtable+8.",
+      "copy_framebuffer": "Target DWARF and instructions confirm dst/dx/dy/w/h/src/sx/sy/context/trans parameters; framebuffer width/height/stride/bits/pixels at +0/+4/+8/+12/+16; context clip at +4..+16, alpha at +32 and pixel operator at +44. Native opaque path falls back for blending, transparency, overlap and unsupported inputs.",
+      "raster565": "Target instructions verify Graphic RGB type at +0x5c, clip rectangle at +0x40e0..+0x40ec; GbmImage type/width/height/palette/pixels at +0/+2/+4/+8/+12. Alpha fill preserves target /256 truncation; native indexed path accepts only fully-contained rectangles, palette 4/8-bit and verified mirror/anchor modes. SKIP_COLOR resolved through target symbol, with guest fallback otherwise.",
+      "blend565": "Target frame/rectangle effects read the existing 1024-byte lookup for mode at Graphic+0x6d+mode*1024, preserving alpha>>3, green quantization and full-alpha threshold 248. MC_grpFillRect kernel getter is read-only; opaque native fill preserves signed-size normalization and context clipping, falling back for alpha/pixel operations.",
+      "font_bridge": "Target BFont symbols fingerprinted; native width/line instructions differential-tested across offsets, styles, colors and Hangul. Display scratch replaces only font-call arguments, leaving source/save text unchanged.",
+      "palette565": "Target ChangeBlendingPal RGB565 branch and GbmImage backup/marker getters verified: backup +16, changed +20, byte count +1. 384 ARM differential cases preserve palette/marker/return values, skip color, flags and quantization.",
+      "saved_quest_render": "Target QuestMgr::DrawQuestString passes saved description this+28 to BFont::DrawTextLine at 0xce3e8. BFont reads text at argument6 and width at argument4 before measuring/slicing. Exact-text display substitution occurs before slicing, preserving QuestMgr and save bytes."
+    }
+  },
+  "compatibility_target": {
+    "host_abi": "arm64-v8a",
+    "host_abis": [
+      "arm64-v8a",
+      "armeabi-v7a"
+    ],
+    "min_sdk": 9,
+    "modern_host_min_sdk": 21,
+    "legacy_native_abis": [
+      "armeabi",
+      "armeabi-v7a"
+    ],
+    "legacy_native_sdk_range": [
+      9,
+      20
+    ],
+    "legacy_physical_device_tested": false,
+    "target_sdk": 36,
+    "elf_and_zip_page_alignment": 16384,
+    "device_tested": true,
+    "device_evidence_scope": "User accepts general test12 results except old-save Korean quest description. Final 1.0.0 adds verified DrawTextLine display handling and passes ARM regression; final APK device validation pending. API14/API19 emulator installation evidence is separate.",
+    "all_android_devices_supported": false
+  },
+  "notes": "Original APK/SO/VFS hashes remain immutable input identities. Test12 applies English VFS and source-verified UI label corrections. Display-only cached-text/word-wrap bridge and target-verified font/palette helpers are separate runtime changes; no quest logic, script opcode, save format, input, DEX, artwork or guest SO change."
 }

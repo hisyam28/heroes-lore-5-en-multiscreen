@@ -1,0 +1,494 @@
+{
+  "c/csv/common_text.dat#23:0": {
+    "source_sha256": "7dff520242794c206b30c4bdffe15717f29e92741e7dea3efe15a6802d57f166",
+    "source": "Min. Level",
+    "translation": "LV.",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#24:0": {
+    "source_sha256": "31ec92d847b8a3fec820e1f0e7c572a011aaeb3a60c9f36830b919d766d0d323",
+    "source": "Power Def.",
+    "translation": "DEF",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#25:0": {
+    "source_sha256": "946f66160636e8e5de480a97dd3d0c95a36daf0eb2f465d4800aaa6631166387",
+    "source": "Power ATK",
+    "translation": "ATK",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#26:0": {
+    "source_sha256": "6c729c7ca1df6e7821ed2061e9a83aa90fcdc72b3b6e353e2e77a6250e94dd66",
+    "source": "Power Phys.",
+    "translation": "P.ATK",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#27:0": {
+    "source_sha256": "a997aa43fa0b5344aff102e0ff6db607b2c948ff898afcc1e1972cc270ae2eb8",
+    "source": "Power Magic",
+    "translation": "M.ATK",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#28:0": {
+    "source_sha256": "c35070bce1f5544161f673d2ab7c57d1c00804d69fffb266173621c3718ce4e6",
+    "source": "Resistance",
+    "translation": "RES",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#29:0": {
+    "source_sha256": "907ae1beb188a5e6f977ee4bbdadac9eedceb94993dcbacb248825e6ca0aa93b",
+    "source": "Speed Hit",
+    "translation": "ATK SPD",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#30:0": {
+    "source_sha256": "3643dd816bb8e97a8ce28589d18507c131d49e0d67d64cebcb22d9bcc2b79e6a",
+    "source": "Evasion",
+    "translation": "EVA",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#31:0": {
+    "source_sha256": "ac991dd3c2d928da95b77afb954db61a3246be27b683f30d1232dcee625ae376",
+    "source": "Accuracy",
+    "translation": "HIT",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#33:0": {
+    "source_sha256": "34e59a17473b70bcadae7acd8a8c5a1169f5a7d0e3baf00f71544bd1b062e18e",
+    "source": "Melee ATK",
+    "translation": "MELEE ATK",
+    "width_px": 60
+  },
+  "c/csv/common_text.dat#34:0": {
+    "source_sha256": "3c01a16a92c19eeefbcef8f37ed040a911e14076abc8a80f14c33e37cbdf9bb4",
+    "source": "Ranged ATK",
+    "translation": "RANGE ATK",
+    "width_px": 60
+  },
+  "c/csv/common_text.dat#35:0": {
+    "source_sha256": "3bb3b91291b52559bf77bab0031cb03064adc4ceebe4aff81ca1db6b5b31fcba",
+    "source": "Magic ATK",
+    "translation": "M.ATK",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#36:0": {
+    "source_sha256": "557cb5372a22c5f8df45f5e514cc0691bad367193b68e7a8708ffe1a3868c57a",
+    "source": "Phys. Def.",
+    "translation": "P.DEF",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#37:0": {
+    "source_sha256": "49c61e8df1dd069ca7c636b1fb045073e989ce7d0aef29ad3511742cec5e9b2a",
+    "source": "Magic Def.",
+    "translation": "M.DEF",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#38:0": {
+    "source_sha256": "1e7c1a64e9d55ec956427a49c4c5d513a57c9067e238563f23412b3d49988bc8",
+    "source": "Melee Hit",
+    "translation": "MELEE HIT",
+    "width_px": 60
+  },
+  "c/csv/common_text.dat#39:0": {
+    "source_sha256": "dd26171aecc709aec6ae95c926ca16d456b841aa9dc2319342f7db1103aef45e",
+    "source": "Ranged Hit",
+    "translation": "RANGE HIT",
+    "width_px": 60
+  },
+  "c/csv/common_text.dat#40:0": {
+    "source_sha256": "be580f6dbb8cfe9f5f00c021b7ba43fbe43b1e9fe0cc7b353ead94ba78ffd48e",
+    "source": "Phys. Evas.",
+    "translation": "P.EVA",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#41:0": {
+    "source_sha256": "ea750079af2b747120e41855c1421c54ecf965c11174ca23455d87995b237d3c",
+    "source": "Shield Def.",
+    "translation": "SHIELD",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#42:0": {
+    "source_sha256": "0caf95050beb73a2394b786df147788223f1fc24a10236edaad3d6d5d65edc15",
+    "source": "Magic Hit",
+    "translation": "M.HIT",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#43:0": {
+    "source_sha256": "14b81126e6c7520bd4c1c8f0adb91d67e6d98a5eb1e5ba28f9416af2615c8e2f",
+    "source": "Magic Res.",
+    "translation": "M.RES",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#44:0": {
+    "source_sha256": "427dd2969bd140bec3c1bcc7983da982f4815938cd4510ad0b2bad48ac5b55f9",
+    "source": "Critical",
+    "translation": "CRIT",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#45:0": {
+    "source_sha256": "67930fc8096f5b9696af1a414780c77e2bb895fd7064e27b6c1025a3a5e60ffb",
+    "source": "Critic. Res.",
+    "translation": "C.RES",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#170:0": {
+    "source_sha256": "02f6ea12816a9e7b8ce846f149281b130033cf5145d260dfea7405bc8866ee1e",
+    "source": "SETTINGS",
+    "translation": "OPTIONS",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#171:0": {
+    "source_sha256": "e0d0adc74c8be52ac274521473e1c54da047fb15e51b5d086273560213fa6262",
+    "source": "PROGRESS",
+    "translation": "RECORDS",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#173:0": {
+    "source_sha256": "7928371f73038254e45eb5ff5f438c04a99cd49644fc41b31ce0bb71c409364d",
+    "source": "COMMUNITY",
+    "translation": "SUPPORT",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#174:0": {
+    "source_sha256": "c93f0e71364b700f5cae89c685a6bc460292ab27698ba635b6afd749a53683ee",
+    "source": "GAME END",
+    "translation": "EXIT",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#221:0": {
+    "source_sha256": "63ad97ff28471d1acc120ed7c0e9214f0ae75b6ad43a5f65e6e17f63a1b4532e",
+    "source": "Min. Level:",
+    "translation": "LV:",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#291:0": {
+    "source_sha256": "b37ce84ba89cbcf6f1044a652b7e1848906267e8d2880adeaddb94d1ea86c4cd",
+    "source": "HPMAX",
+    "translation": "MAX HP",
+    "width_px": 42
+  },
+  "c/csv/common_text.dat#292:0": {
+    "source_sha256": "e3d9c3c4571b838e81009af51facfdef0857d950ea40115179a8867cfd3a65e9",
+    "source": "SPMAX",
+    "translation": "MAX SP",
+    "width_px": 42
+  },
+  "c/csv/ingame_text.dat#0:0": {
+    "source_sha256": "c71dab23ec05bf3e70d5744bfd4b71f2af91ad2a82eb0555eb8dfb7f3a278027",
+    "source": "Central Tower",
+    "translation": "Central Tower",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#1:0": {
+    "source_sha256": "03a5fc11e934e5a1f5a8ca7b5a6deeeea357773fb9dbbeb27b509b5fd1fd501d",
+    "source": "Central;17 TH",
+    "translation": "17th Street",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#2:0": {
+    "source_sha256": "41d3f56d58a6604bea02a5dfce833c59b3340ed9776756fbcc1f5fd3d5bdc7a2",
+    "source": "Central;Underground",
+    "translation": "Underpass",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#3:0": {
+    "source_sha256": "1ae3af5e587f943f3b1bb0e721b29e58730815e29a81593ca0da4ea5ed89f19a",
+    "source": "Central;9 TH",
+    "translation": "9th Street",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#4:0": {
+    "source_sha256": "c15db5d1b557448fa9faffac7b9647fe20b5038c395ea27ba4114195ff117c5a",
+    "source": "South;Island;Hwangnyeon",
+    "translation": "South Hwang.",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#5:0": {
+    "source_sha256": "478d94c8067409322371695aabe17c6afe698607b7c9b86ae19a72b1577d131b",
+    "source": "Eastern;Island;Hwangnyeon",
+    "translation": "East Hwang.",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#6:0": {
+    "source_sha256": "dec9501dc1082f69a52189d575c0e41cada7b29f9ce14463ed8cde401c18c4bb",
+    "source": "Twilight Bridge",
+    "translation": "Twilight Br.",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#7:0": {
+    "source_sha256": "59dab397c80cab6eb4127499137d0d98ef3720a07cfa72c9509fbbc8b29bcef9",
+    "source": "Northern;Bernal",
+    "translation": "North Bernal",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#8:0": {
+    "source_sha256": "b8163ed6761cf70b4d0411f9fdb6522408701e744aa3e4b67f642e0e669a1750",
+    "source": "Spiny;Spider Cave",
+    "translation": "Spider Cave",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#9:0": {
+    "source_sha256": "67c8d6d257be17a6691aeef740b1d8dfe5fe9cc688f8732a01dfd0d55f483be9",
+    "source": "Rockville",
+    "translation": "Rockville",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#10:0": {
+    "source_sha256": "ffbfca292a0ca6b7f69c88867a71d105da02838e510280d9c62adb771115f2b7",
+    "source": "Ernest Mansion",
+    "translation": "Ernest Manor",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#11:0": {
+    "source_sha256": "5c3fbaa4aec045200044d18b022a20141943610a4442bc8645691f80562acf79",
+    "source": "Levan",
+    "translation": "Levan",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#12:0": {
+    "source_sha256": "343fd80dc15c29aa07f961d541edb759b2b235c1c48eca4db4ccee95d21b6609",
+    "source": "Frozen;Sea",
+    "translation": "Frozen Sea",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#13:0": {
+    "source_sha256": "7bfd8e9f0880360e36d1908bc6cd72d9a3d54b5036bff8fe4b3627132ce0a0a1",
+    "source": "Screaming;Road",
+    "translation": "Screaming Rd.",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#14:0": {
+    "source_sha256": "13cc5dcb18615c9faaa3135834bcb3e531d694e808906b180ca800e622750be7",
+    "source": "Advent Ark",
+    "translation": "Advent Ark",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#15:0": {
+    "source_sha256": "ff98f318c4e5f654a5619409562f4365c97742470b2371b53b95d6b238e83ca6",
+    "source": "Ice Cave",
+    "translation": "Ice Cave",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#16:0": {
+    "source_sha256": "39ec193687905ce68daf95814e9ce7ec487a783d7f14064d5ffcd1113865fbce",
+    "source": "North Cave",
+    "translation": "North Cave",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#17:0": {
+    "source_sha256": "073171249b545b6fa26da6d59d5cc239bd3a64fd4b93623038d32cd09188cb26",
+    "source": "Moitura;Plain",
+    "translation": "Moitura Plain",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#18:0": {
+    "source_sha256": "5b1e8312083af16571fb30843d1804e8a98f51263a81990febd5831931060c26",
+    "source": "Doctrinal;Crown",
+    "translation": "Crown Chapel",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#19:0": {
+    "source_sha256": "c9b1fe96fa9fb485a233817d0938c1a6e5eb7cbdb9c745c74e7ca67dda93ddae",
+    "source": "Irem",
+    "translation": "Irem",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#20:0": {
+    "source_sha256": "4319ea45ef2d5f7b3f1014974864c16b90b2398fefe3024b52b8c45b50399dff",
+    "source": "Advent Ruins",
+    "translation": "Advent Ruins",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#21:0": {
+    "source_sha256": "a1fbe47d8cff1387aadcf7e8334e5e97755848e560348af21bc15c5d4d00e923",
+    "source": "Trident;Island",
+    "translation": "Trident Isle",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#22:0": {
+    "source_sha256": "955682dc0687f9bbccecadd469a3e22188435ea444f1dc4dd46f43771bd2f872",
+    "source": "Underwater;Cave",
+    "translation": "Subsea Cave",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#23:0": {
+    "source_sha256": "2499830e8e42ad808fcfb714bf8570c11ab315c685458f9d0208d1e9cdb42edf",
+    "source": "Closed;Tunnel",
+    "translation": "Closed Tunnel",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#24:0": {
+    "source_sha256": "23d51fe5fee63398b292845ed914de92d0e9cace62c73ec9ac8baffafa3e50ed",
+    "source": "Central;Island;Col Creek",
+    "translation": "Col Creek",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#25:0": {
+    "source_sha256": "1b606398bdbdd5622bc77474d46d4f0e6f3b176f6f3621d3bdcd5eca4764b35b",
+    "source": "East;Tunnel",
+    "translation": "East Tunnel",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#26:0": {
+    "source_sha256": "3547fd40bf00cac9323cbd4f1a726cdc7b8d0af087de0729a99116d85b5bdd81",
+    "source": "King Sport",
+    "translation": "Kingsport",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#27:0": {
+    "source_sha256": "36566b60585d878d730f0ba7af6182d366ced6c19160ef0aab6aa866e4a896eb",
+    "source": "New Home Tyr",
+    "translation": "Tyr Hideout",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#28:0": {
+    "source_sha256": "1da4f8cc88578341d5a3cd27a6039ee9876a22f0f48ee5fd3c780828f5841c6c",
+    "source": "Meadow Hill East",
+    "translation": "E. Meadow Hill",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#29:0": {
+    "source_sha256": "2d1d8fef9bbf96ecc9f6ce37bd4ac99f1965f4df06a7b289244601a52fc960e1",
+    "source": "Underground;Facilities",
+    "translation": "Underground",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#30:0": {
+    "source_sha256": "7dce0c5258e7035f304746dcacf189edd97fcf3fc118fee1d6d4a6f75b5daf0b",
+    "source": "Western Holy Land",
+    "translation": "West Sanctuary",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#31:0": {
+    "source_sha256": "9c159022d75581a6f77d2d7ca51951fd6a5144cd44493d57b66feba2afc257c0",
+    "source": "Guardian;Stronghold",
+    "translation": "Guardian Fort",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#32:0": {
+    "source_sha256": "57092fedcad4f8c83d595fbe9676c945b172e476b88b871bd825b09af693e3cf",
+    "source": "Sanctuary Center",
+    "translation": "Sanctuary",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#33:0": {
+    "source_sha256": "2caf4bffe0f78540805ede4b9ed9fa7ef133b527d9ecaa9becd7df125ba2d2d6",
+    "source": "Twilight Island",
+    "translation": "Twilight Isle",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#34:0": {
+    "source_sha256": "658ff88992087d41190ba1a9cb73c92c684fdddb9646214b98bea57e578334d3",
+    "source": "Bernal Island",
+    "translation": "Bernal Isle",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#35:0": {
+    "source_sha256": "c6f1f3891d35e69ee998646946eb423bb0056cb11caf2b7a2a4e64f44610d001",
+    "source": "Silver Hill",
+    "translation": "Silver Hill",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#36:0": {
+    "source_sha256": "41d25e9b3e395fdfcd71d34ff3ff9fb2ca4aa51e7069d91419f9aa296f0b1369",
+    "source": "Moitura Island",
+    "translation": "Moitura Isle",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#37:0": {
+    "source_sha256": "ef6b692d9a8530a60445064f0f87f120644570563dbe62e58442439817d096f8",
+    "source": "Trident Island",
+    "translation": "Trident Isle",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#38:0": {
+    "source_sha256": "6b3e906d54f60a5f9e48cb9617c819e071e056e43c91bfcd391ebb62c604c50b",
+    "source": "Col Creek Island",
+    "translation": "Col Creek Isle",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#39:0": {
+    "source_sha256": "2e6769793e03fc8a2db80fdcacf572e15556247f84bcb17c646cde0ebd158d11",
+    "source": "Meadow Hill",
+    "translation": "Meadow Hill",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#40:0": {
+    "source_sha256": "14a616b711e22c79f6ac7ad444aef333261de2094080cde283ebe42a49d1c9c0",
+    "source": "Holy Land",
+    "translation": "Holy Land",
+    "width_px": 84
+  },
+  "c/csv/ingame_text.dat#41:0": {
+    "source_sha256": "a7d6d11b7c4ae051930b90d37ea289b40bcc10c91b26a16aa2460bfc89287072",
+    "source": "Current Quest",
+    "translation": "ACTIVE",
+    "width_px": 72
+  },
+  "c/csv/ingame_text.dat#42:0": {
+    "source_sha256": "7f6ef197c395b307ea9a80ca441bc9043d5cac1b89a1f553ae9c5704278fe878",
+    "source": "Story Quarter",
+    "translation": "STORY",
+    "width_px": 72
+  },
+  "c/csv/ingame_text.dat#132:0": {
+    "source_sha256": "e2b80e3bc01389aa84a2d2b97375a10f8fa4eddb6b8819d20a682110e5588e9d",
+    "source": "\ubcf4\uc0c1\ubcf4\uae30",
+    "translation": "REWARDS",
+    "width_px": 72
+  },
+  "c/csv/ingame_text.dat#135:0": {
+    "source_sha256": "695cc0a2fc2e21a9f39eb3982a59a63a22318932c8c86d8eee39d67170c9e475",
+    "source": "\uc9c4\ud589\uc911",
+    "translation": "IN PROGRESS",
+    "width_px": 72
+  },
+  "c/csv/ingame_text.dat#147:0": {
+    "source_sha256": "736025afa396204c2d60b7092d020b11fda51e638a55545068b5be3c5bc0cdd8",
+    "source": "\ub9f5\uc5d0\uc11c\ud655\uc778",
+    "translation": "MAP",
+    "width_px": 72
+  },
+  "c/csv/menu_text.dat#194:0": {
+    "source_sha256": "6c49cb9fab0d25ecae0149e06662b235012cc263de686b1d53db160b52fc1ed8",
+    "source": "\uac8c\uc784\ubb38\uc758",
+    "translation": "SUPPORT",
+    "width_px": 42
+  },
+  "c/csv/ingame_text.dat#123:0": {
+    "source_sha256": "74c19ccb84def157bd4f864528f313c682ff75d229ec2ecdec16f6a4f2f03c18",
+    "source": "\uad50\ub2e8\uc758 \ubbf8\uad81",
+    "translation": "Order Labyrinth",
+    "width_px": 126
+  },
+  "c/csv/quest_0.dat#80:0": {
+    "source_sha256": "74c19ccb84def157bd4f864528f313c682ff75d229ec2ecdec16f6a4f2f03c18",
+    "source": "\uad50\ub2e8\uc758 \ubbf8\uad81",
+    "translation": "Order Labyrinth",
+    "width_px": 156
+  },
+  "c/csv/quest_1.dat#80:0": {
+    "source_sha256": "74c19ccb84def157bd4f864528f313c682ff75d229ec2ecdec16f6a4f2f03c18",
+    "source": "\uad50\ub2e8\uc758 \ubbf8\uad81",
+    "translation": "Order Labyrinth",
+    "width_px": 156
+  },
+  "c/csv/quest_2.dat#80:0": {
+    "source_sha256": "74c19ccb84def157bd4f864528f313c682ff75d229ec2ecdec16f6a4f2f03c18",
+    "source": "\uad50\ub2e8\uc758 \ubbf8\uad81",
+    "translation": "Order Labyrinth",
+    "width_px": 156
+  },
+  "c/csv2/help_android_skt.dat#19:0": {
+    "source_sha256": "6c49cb9fab0d25ecae0149e06662b235012cc263de686b1d53db160b52fc1ed8",
+    "source": "\uac8c\uc784\ubb38\uc758",
+    "translation": "SUPPORT",
+    "width_px": 126
+  },
+  "c/csv2/help_skt.dat#19:0": {
+    "source_sha256": "6c49cb9fab0d25ecae0149e06662b235012cc263de686b1d53db160b52fc1ed8",
+    "source": "\uac8c\uc784\ubb38\uc758",
+    "translation": "SUPPORT",
+    "width_px": 126
+  }
+}

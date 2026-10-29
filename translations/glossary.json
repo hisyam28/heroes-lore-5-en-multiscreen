@@ -1,4 +1,96 @@
 {
   "schema_version": 1,
-  "terms": []
+  "terms": [
+    {
+      "source": "\uc5c6\uc74c",
+      "english": "None",
+      "category": "character"
+    },
+    {
+      "source": "\uc288\ub974\uce20",
+      "english": "Schultz",
+      "category": "character"
+    },
+    {
+      "source": "\ub80c",
+      "english": "Ren",
+      "category": "character"
+    },
+    {
+      "source": "\ud2f0\uc544\ub098",
+      "english": "Tiana",
+      "category": "character"
+    },
+    {
+      "source": "\uc5d0\ube14\ub9b0",
+      "english": "Evelyn",
+      "category": "character"
+    },
+    {
+      "source": "\uce74\uc988",
+      "english": "Kaze",
+      "category": "character"
+    },
+    {
+      "source": "\ud06c\ub9ac\uc2a4",
+      "english": "Chris",
+      "category": "character"
+    },
+    {
+      "source": "\ud14c\uc624\ub3c4\uc5b4",
+      "english": "Theodore",
+      "category": "character"
+    },
+    {
+      "source": "\uc544\uc77c\ub9b0",
+      "english": "Eileen",
+      "category": "character"
+    },
+    {
+      "source": "\uc54c\ub809\uc2a4",
+      "english": "Alex",
+      "category": "character"
+    },
+    {
+      "source": "\ub8e8\ud37c\uc2a4",
+      "english": "Rufus",
+      "category": "character"
+    },
+    {
+      "source": "\ud2f0\ub974",
+      "english": "Tyr",
+      "category": "character"
+    },
+    {
+      "source": "\ub8e8\ub808\uc778",
+      "english": "Lurain",
+      "category": "character"
+    },
+    {
+      "source": "\ud06c\ub798\ub4dc",
+      "english": "Krad",
+      "category": "character"
+    },
+    {
+      "source": "\uc54c\ud504\ub808\ub4dc",
+      "english": "Alfred",
+      "category": "character"
+    },
+    {
+      "source": "???",
+      "english": "ATK",
+      "category": "abbreviation"
+    },
+    {
+      "source": "???",
+      "english": "DEF",
+      "category": "abbreviation"
+    },
+    {
+      "source": "????",
+      "english": "Crit.",
+      "category": "abbreviation"
+    }
+  ],
+  "policy": "Reference character names; common stat abbreviations; existing English target text stays unchanged."
 }

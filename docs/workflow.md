@@ -1,5 +1,31 @@
 # Alur kerja APK target baru
 
+Prioritas rilis: pengguna meminta perbaikan deskripsi quest dari save lama dan
+publikasi ke `hisyam28/heroes-lore-5-en-multiscreen`. Perbaikan menambahkan jalur
+`BFont::DrawTextLine` yang terverifikasi, tanpa menulis save. APK v1.0.0 memakai
+label Heroes Lore 5 English, signer update yang sama dan debug nonaktif.
+Publikasi **APK final sebagai aset GitHub Release** diminta eksplisit; APK input,
+kunci, snapshot acuan, dependency binary dan hasil eksperimen tetap lokal serta
+tidak ditambahkan paksa ke Git. Lihat [catatan rilis](release-v1.0.0.md).
+
+Prioritas aktif: koreksi layout/quest Inggris dan optimasi yang diminta pengguna
+setelah screenshot test11. Perubahan aset, bridge tampilan, dan optimasi runtime
+dicatat dan diuji terpisah dalam [catatan test12](test12-layout-performance.md).
+Save, opcode, metadata gameplay, input, artwork dan guest SO tetap dipertahankan.
+
+Tahap test11: terjemahan aset Korea ke Inggris setelah pengguna mengonfirmasi
+test10 dapat dipasang dan secara eksplisit meminta tahap terjemahan. Runtime
+test10 dibekukan; perubahan dibatasi pada field teks VFS dan metadata update
+yang diperlukan. Keberhasilan instalasi tidak berarti semua FPS/save/gameplay
+telah diverifikasi. Panduan dan bukti ada di [terjemahan aset](english-assets.md).
+Permintaan berikutnya menambahkan dukungan Android 4 dan jalur lama hingga
+Gingerbread. Test9 memakai engine native baseline pada API9–20 dan runtime modern
+pada API21+, dengan DEX terpisah; rincian dan batas uji ada di
+[catatan kompatibilitas lama](test9-legacy-android.md).
+Test9 kemudian ditolak installer pada ponsel modern. Test10 memperbaiki kompresi
+`resources.arsc`; pemeriksaan install-time tersebut sekarang wajib dilakukan
+sebelum dan sesudah signing, selain zipalign dan pemeriksaan signature.
+
 1. **Penerimaan baseline.** Simpan APK asli di `inputs/`. Jalankan inventaris,
    catat SHA-256, identitas package/version melalui pemeriksa manifest Android,
    ABI, library dan arsip resource. Tool inventaris awal hanya mengidentifikasi
