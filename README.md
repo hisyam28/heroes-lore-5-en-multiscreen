@@ -1,100 +1,99 @@
 # Heroes Lore 5 English Multiscreen
 
-Heroes Lore 5 versi Inggris dengan tampilan multiscreen dan adaptasi Android ARM32/ARM64. APK asli **01.01.00** menjadi baseline game. Source **[sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en)** digunakan sebagai referensi teknis dan bahasa, dengan penyesuaian terhadap binary target.
+An English localization of Heroes Lore 5 with multiscreen support and Android ARM32/ARM64 runtime adaptations. The original **01.01.00** APK remains the game baseline. **[sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en)** provides the technical and translation reference, with changes verified against the target binary.
 
-**Rilis: v1.0.0** · Nama aplikasi: **Heroes Lore 5 English**
+**Release: v1.0.0** | App name: **Heroes Lore 5 English**
 
-[Unduh APK v1.0.0](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/download/v1.0.0/heroes-lore-5-english-multiscreen-v1.0.0.apk) · [Halaman rilis](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/latest) · [Kredit](CREDITS.md)
+[Download APK v1.0.0](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/download/v1.0.0/heroes-lore-5-english-multiscreen-v1.0.0.apk) | [Releases](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/latest) | [Credits](CREDITS.md)
 
-## Spesifikasi dan kompatibilitas
+## Specifications and compatibility
 
-| Komponen | Keterangan |
+| Component | Details |
 |---|---|
-| Minimum paket | Android **2.3 Gingerbread / API9**, termasuk Android 4 |
-| Jalur Android lama | Android 2.3–4.4 / API9–20: engine ARM asli |
-| Jalur Android modern | Android 5.0+ / API21+: runner ARM32 atau ARM64 |
-| Arsitektur | `armeabi` untuk engine legacy; `armeabi-v7a` dan `arm64-v8a` untuk perangkat yang sesuai |
+| Package minimum | Android **2.3 Gingerbread / API9**, including Android 4 |
+| Legacy Android path | Android 2.3–4.4 / API9–20: original native ARM engine |
+| Modern Android path | Android 5.0+ / API21+: ARM32 or ARM64 runner |
+| Architectures | `armeabi` for the legacy engine; `armeabi-v7a` and `arm64-v8a` on compatible devices |
 | Target SDK | **36**, Android **16** |
-| Grafis | OpenGL ES **1.1** / provider GLES1 yang kompatibel |
-| Orientasi | Landscape |
-| Layar modern | Canvas mengikuti rasio layar dengan proporsi objek tetap |
-| Alignment host modern | ELF dan ZIP **16 KB** |
+| Graphics | OpenGL ES **1.1** / a compatible GLES1 provider |
+| Orientation | Landscape |
+| Modern display | Canvas adapts to the screen aspect ratio while preserving object proportions |
+| Modern host alignment | **16 KB** ELF and ZIP alignment |
 | Package | `co.kr.eamobile.hl5.runner` |
-| Versi / versionCode | **1.0.0** / **1010100** |
-| Baseline game | **01.01.00** |
-| APK | Universal ARM, **22.787.239 byte** (sekitar 23 MB) |
+| Version / versionCode | **1.0.0** / **1010100** |
+| Game baseline | **01.01.00** |
+| APK | Universal ARM, **22,787,239 bytes** (about 23 MB) |
 
-Minimum paket adalah batas instalasi yang dikonfigurasi, bukan sertifikasi semua perangkat. Android 2.3 belum diuji fisik. Instalasi emulator ARM32 Android 4.0.2 dan 4.4 sudah diperiksa; ini belum membuktikan seluruh gameplay legacy. Tidak tersedia library host x86/x86_64. Batas RAM dan kecepatan CPU minimum belum ditetapkan melalui benchmark perangkat.
+The package minimum is the configured installation threshold, not certification for every device. Android 2.3 has not been tested on physical hardware. Installation has been checked on ARM32 Android 4.0.2 and 4.4 emulators; this does not verify all legacy gameplay. No x86/x86_64 host libraries are included. Minimum RAM and CPU requirements have not been established through device benchmarks.
 
-## Fitur APK
+## APK features
 
-- **Multiscreen pada runner modern.** Area pandang dunia diperluas mengikuti rasio layar, bukan meregangkan objek dari rasio 5:3. Viewport dan koordinat sentuhan mengikuti canvas. Fullscreen memakai area cutout yang tersedia dan menyembunyikan system bar. Perluasan viewport berlaku pada jalur Android 5+; jalur native lama mempertahankan perilaku layar engine asli.
-- **Terjemahan Inggris.** Sebanyak **13.825 field Hangul** diterjemahkan pada **57 tabel DAT dan 258 script SCN** yang diperiksa. Sebanyak **72 label Inggris bawaan** diringkas agar sesuai panel. Menu utama memakai kapitalisasi konsisten, stat memakai label ringkas, dan dialog modern mengikuti lebar kotak yang tersedia.
-- **Quest dari save lama.** Pada runner modern, judul, kategori dan deskripsi Korea yang cocok dengan kamus sumber diganti saat ditampilkan. Deskripsi diterjemahkan sebelum pemenggalan dan scrolling. File save dan status/progres quest tidak ditulis ulang; tidak perlu memulai permainan baru untuk perbaikan tampilan ini.
-- **Lifecycle dan Exit.** Fullscreen dipasang setelah view siap. Kembali dari Home memakai pause/resume, dan menu Exit diteruskan untuk menutup task pada runner modern.
-- **Optimasi runtime.** Memori guest yang dilepas dapat dipakai ulang; persiapan aset berjalan di background dan cache memakai fingerprint. Salin framebuffer, raster RGB565, efek palet dan metrik font dioptimalkan dengan fallback ke fungsi asli untuk kasus yang tidak didukung.
-- **Tampilan bersih.** Overlay hijau dan tombol salin status tidak muncul pada peluncuran normal. APK rilis tidak memakai flag Android `debuggable`.
-- **Data game dipertahankan.** Guest SO, metadata gameplay, opcode script, format save, input, audio dan artwork tidak diganti dengan versi source acuan. Perubahan teks dan adaptasi host dicatat terpisah.
+- **Multiscreen on the modern runner.** The visible world area expands with the screen aspect ratio while preserving object proportions. Viewport and touch coordinates follow the canvas. Fullscreen uses the available display cutout area and hides system bars. The expanded viewport applies to Android 5+; the legacy native path retains the original engine's display behavior.
+- **English localization.** **13,825 Hangul text fields** have been translated across **57 DAT tables and 258 SCN scripts** that were inspected. **72 existing English labels** have been shortened to fit their panels. Main menu capitalization is consistent, stat labels are compact, and modern dialogue follows the available text box width.
+- **Quests from older saves.** On the modern runner, Korean titles, categories, and descriptions that exactly match the source dictionary are replaced when displayed. Descriptions are translated before line splitting and scrolling. Save files and quest status/progress are not rewritten; starting a new game is not required for this display fix.
+- **Lifecycle and Exit handling.** Fullscreen is applied after the view is ready. Returning from Home uses pause/resume, and the in-game Exit action closes the task on the modern runner.
+- **Runtime optimizations.** Freed guest memory can be reused. Asset preparation runs in the background, and the cache uses fingerprints. Framebuffer copying, RGB565 raster operations, palette effects, and font metrics are accelerated, with the original functions handling unsupported cases.
+- **Clean presentation.** The green diagnostic overlay and copy-status button are hidden during normal launch. The release APK does not enable Android's `debuggable` flag.
+- **Preserved game data.** The original engine library, gameplay metadata, script opcodes, save format, input configuration, audio, and artwork are retained rather than replaced with reference-version assets. Text changes and host adaptations are tracked separately.
 
-Artwork rating pada jalur Android lama masih Korea. Cakupan field teks di atas tidak berarti seluruh bitmap sudah diterjemahkan. Bridge perbaikan tampilan save lama berlaku pada runner modern; jalur legacy tidak memakai bridge tersebut. Layanan online lama tidak dinyatakan pulih.
+Rating artwork on the legacy Android path remains in Korean. The text-field coverage above does not mean every bitmap has been translated. The display bridge for older saves applies to the modern runner; the legacy path does not use that bridge. Old online services are not claimed to have been restored.
 
-## Instalasi dan update
+## Installation and updates
 
-1. Unduh APK dari [GitHub Releases](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/latest).
-2. Izinkan instalasi dari aplikasi pengunduh/file manager jika Android memintanya.
-3. Untuk build runner sebelumnya, **pasang sebagai update tanpa uninstall** agar data aplikasi tetap tersimpan. Package dan signer update dipertahankan.
-4. Lanjutkan save dan periksa panel quest lama. Penggantian tampilan tidak mengubah progres permainan.
+1. Download the APK from [GitHub Releases](https://github.com/hisyam28/heroes-lore-5-en-multiscreen/releases/latest).
+2. Allow installation from your downloader or file manager if Android requests it.
+3. If you use an earlier runner build, **install this as an update without uninstalling** to retain app data. The package and update signer are unchanged.
+4. Continue your save and check its existing quest panels. Display substitutions do not change game progress.
 
-APK lain dengan package atau signer berbeda belum tentu bisa diperbarui melalui jalur yang sama. Jangan menghapus aplikasi yang berisi save hanya untuk mencoba pemasangan.
+APKs with a different package or signer may not support the same update path. Do not remove an app containing your saves just to try an installation.
 
-SHA-256 APK v1.0.0:
+APK v1.0.0 SHA-256:
 
 ```text
 dfc424bbabc19a45512857250153af175143a130fcd429131aed8053357618ed
 ```
 
-## Bukti pengujian
+## Validation
 
-**78 tes lokal lulus** untuk rilis ini, termasuk regresi deskripsi quest save lama
-dan pemeriksaan APK final. Pemeriksaan workspace dan whitespace Git juga lulus.
+**78 local tests passed** for this release, including the older-save quest description regression and final APK checks. Workspace and Git whitespace checks also passed.
 
-Pengguna telah mencoba seri build sebelumnya di Android 16 pada Dimensity 9400+ dan Samsung Galaxy A24/Helio G99 serta melaporkan peningkatan tampilan/performa. Pada review terakhir, bagian lain dinilai cukup baik, dengan deskripsi quest save lama sebagai masalah tersisa. Rilis 1.0.0 menambahkan perbaikan jalur deskripsi tersebut; APK final belum diuji langsung pada ponsel pengguna.
+Earlier builds received device testing and feedback on Android 16 with Dimensity 9400+ and Samsung Galaxy A24/Helio G99 hardware, with reported display and performance improvements. The last review accepted the general results while identifying Korean descriptions in older saves as the remaining issue. Release 1.0.0 adds that description-path fix; its final APK had not yet been tested directly on those phones when published.
 
-- Tes lokal melindungi format VFS, metadata/opcode, placeholder/kontrol warna, input, DEX legacy/modern, heap, viewport dan aset yang tidak diubah.
-- Regresi menjalankan ARM **QuestMgr → DrawTextLine → DrawText**, memakai deskripsi Korea asli dan beberapa posisi scroll, lalu memastikan byte data quest tetap sama.
-- Helper font dibandingkan pada **900 kasus** dan helper palet pada **384 kombinasi** terhadap fungsi ARM target.
-- Pada sampel intro tiga frame, helper palet mengurangi instruksi guest dari **1.388.879 menjadi 561.635 (59,56%)**, dengan framebuffer identik. Sampel menu/map tidak mendapat pengurangan dari helper palet ini. **Ini bukan persentase kenaikan FPS Android.**
-- Signature v1/v2/v3, signer update, resource table STORED/alignment 4 byte, alignment host 16 KB, nama dan versi paket diperiksa saat build.
+- Local tests protect VFS structure, metadata/opcodes, placeholders/color controls, input, legacy/modern DEX separation, heap behavior, viewport geometry, and unchanged assets.
+- The regression executes the original ARM **QuestMgr → DrawTextLine → DrawText** path with a Korean description and multiple scroll positions, then checks that quest data bytes remain unchanged.
+- Font helpers were compared against the target ARM functions in **900 cases**, and palette helpers in **384 combinations**.
+- In a three-frame intro sample, the palette helper reduced guest instructions from **1,388,879 to 561,635 (59.56%)**, with an identical framebuffer. The sampled menu/map phases showed no instruction reduction from this palette helper. **This is not an Android FPS improvement percentage.**
+- Build checks cover v1/v2/v3 signatures, the update signer, a STORED resource table with 4-byte alignment, 16 KB host alignment, and package name/version information.
 
-Tidak ada klaim semua ponsel atau seluruh adegan pasti lancar. Audio, sesi panjang, portal berulang, save dan variasi UI masih memerlukan pemeriksaan perangkat. Rincian ada di [catatan v1.0.0](docs/release-v1.0.0.md).
+Smooth performance on every phone or in every scene is not guaranteed. Audio, long sessions, repeated portal transitions, saves, and UI variations still require device validation. See the [v1.0.0 release notes](docs/release-v1.0.0.md) for details.
 
-## Source dan build lokal
+## Source and local builds
 
-Repositori memuat tooling, profil target, katalog/override terjemahan, tes, dokumentasi dan patch runner. **APK input, SO game, dependency binary, snapshot acuan, kunci dan hasil build tidak dimasukkan ke Git.** APK final tersedia sebagai aset GitHub Release.
+This repository contains tooling, target profiles, translation catalogs/overrides, tests, documentation, and the runner patch. **Input APKs, game libraries, dependency binaries, reference snapshots, signing keys, and build outputs are excluded from Git.** The final APK is distributed as a GitHub Release asset.
 
-Build lokal memerlukan APK baseline dan ZIP referensi dengan hash sesuai profil, Python 3.10+, JDK17, Android SDK API36/API9, Build Tools dan NDK yang tercatat. Tes ARM tambahan memakai Python Unicorn. Toolchain, input dan stage tetap lokal. Lihat [petunjuk rilis](docs/release-v1.0.0.md) dan [profil target](config/target-profile.json).
+Local builds require the baseline APK and reference ZIP matching the profile hashes, Python 3.10+, JDK17, Android SDK API36/API9, and the recorded Build Tools and NDK versions. Additional ARM execution tests use Python Unicorn. Toolchains, inputs, and staging directories remain local. See the [release build instructions](docs/release-v1.0.0.md) and [target profile](config/target-profile.json).
 
 ```powershell
 python -B tools/check_workspace.py
 python -B -m unittest discover -s tests -v
 ```
 
-| Direktori | Isi |
+| Directory | Contents |
 |---|---|
-| `config/` | Profil target, lokalisasi dan metadata rilis |
-| `tools/` | Parser, validator, compiler teks, staging/overlay dan builder APK |
-| `translations/` | Katalog, glossary dan override berdasarkan sumber/konteks |
-| `tests/` | Pengujian tooling, model dan perbandingan ARM target |
-| `docs/` | Referensi, workflow, diagnosis, bukti dan batas uji |
-| `inputs/`, `work/`, `dist/`, `.local/` | Data dan hasil lokal yang diabaikan Git |
+| `config/` | Target, localization, and release metadata |
+| `tools/` | Parsers, validators, text compiler, staging/overlay, and APK builder |
+| `translations/` | Catalog, glossary, and source/context-based overrides |
+| `tests/` | Tooling tests, models, and target ARM comparisons |
+| `docs/` | References, workflow, diagnoses, evidence, and validation limits |
+| `inputs/`, `work/`, `dist/`, `.local/` | Local data and outputs excluded from Git |
 
-Riwayat: [referensi](docs/reference-study.md), [Android](docs/android-port.md), [multiscreen](docs/multiscreen-target.md), [stabilitas](docs/test8-stability-startup.md), [legacy](docs/test9-legacy-android.md), [packaging](docs/test10-install-packaging.md), [terjemahan](docs/english-assets.md), [layout/performa](docs/test12-layout-performance.md).
+Development history: [reference study](docs/reference-study.md), [Android](docs/android-port.md), [multiscreen](docs/multiscreen-target.md), [stability](docs/test8-stability-startup.md), [legacy support](docs/test9-legacy-android.md), [packaging](docs/test10-install-packaging.md), [translation](docs/english-assets.md), and [layout/performance](docs/test12-layout-performance.md).
 
-## Kredit
+## Credits
 
-- **[sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en)** — referensi utama reverse engineering, runner dan terjemahan Inggris HL5.
-- **[hisyam28/heroes-lore-3-en](https://github.com/hisyam28/heroes-lore-3-en)** — pengalaman lokalisasi HL3.
-- **[Unicorn Engine](https://github.com/unicorn-engine/unicorn)** dan kontributor QEMU — fondasi eksekusi ARM guest.
-- Heroes Lore 5 dan materi game tetap merupakan karya pemegang hak masing-masing; proyek ini tidak mengklaim kepemilikan atau afiliasi resmi.
+- **[sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en)** — the main reference for HL5 reverse engineering, the runner, and English translations.
+- **[hisyam28/heroes-lore-3-en](https://github.com/hisyam28/heroes-lore-3-en)** — HL3 localization experience.
+- **[Unicorn Engine](https://github.com/unicorn-engine/unicorn)** and QEMU contributors — the foundation for ARM guest execution.
+- Heroes Lore 5 and its game materials remain the work of their respective rights holders. This project claims no ownership or official affiliation.
 
-Penyesuaian target, multiscreen dan rilis ini dikelola di **hisyam28/heroes-lore-5-en-multiscreen**. Rincian atribusi dan komponen pihak ketiga terdapat di [CREDITS.md](CREDITS.md).
+Target adaptations, multiscreen work, and this release are maintained at **hisyam28/heroes-lore-5-en-multiscreen**. See [CREDITS.md](CREDITS.md) for attribution and third-party component details.
