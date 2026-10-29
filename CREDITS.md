@@ -1,36 +1,55 @@
-# Kredit dan asal referensi
+# Credits and references
 
-Proyek ini disiapkan berdasarkan kajian ZIP source HL5 yang diberikan pemilik
-workspace serta pengalaman pengerjaan proyek HL3.
-Katalog Inggris rilis ini memakai teks sumber dan terjemahan referensi HL5 melalui
-pencocokan konteks target, dengan koreksi kontrol, ejaan dan pemendekan lokal.
-Resource Inggris, opcode dan library dari snapshot referensi tidak disalin
-menggantikan runtime game target.
+This project builds on the HL5 source ZIP supplied by the workspace owner and
+experience from the HL3 localization project. Its English catalog uses source
+text and translations from the HL5 reference, matched against the target context,
+with local corrections to control codes, spelling, and label length. The reference
+resource archive, script opcodes, and game library were not substituted for the
+target game's runtime.
 
-- Referensi HL5: [sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en).
-  Kredit utama untuk kajian reverse engineering, implementasi runner, parser
-  resource dan translation memory Inggris. Referensi tidak diklaim sebagai karya
-  baru proyek ini. Penyesuaian binary 01.01.00, multiscreen, kestabilan,
-  optimasi, layout dan bridge deskripsi save lama didokumentasikan terpisah.
-- Referensi HL3: [hisyam28/heroes-lore-3-en](https://github.com/hisyam28/heroes-lore-3-en).
+- **Main HL5 reference: [sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en).**
+  Credit for reverse-engineering research, the runner implementation, resource
+  parsers, and English translation memory. These contributions are not claimed
+  as new work by this project. Adaptations for the 01.01.00 binary, multiscreen,
+  stability, performance, layout, and older-save quest descriptions are
+  documented separately.
+- **HL3 reference: [hisyam28/heroes-lore-3-en](https://github.com/hisyam28/heroes-lore-3-en).**
+  Reference experience for game localization and UI layout.
 
-ZIP acuan tidak memiliki metadata Git, sehingga commit upstream persisnya
-belum ditetapkan. Hash bahan dan salinan sumber lengkap disimpan lokal.
-Source runner acuan memakai [Unicorn](https://github.com/unicorn-engine/unicorn)
-sebagai engine CPU. Library ARM64 berasal dari ZIP acuan yang dipin hash-nya.
-Dependency ARM32 test8 dibangun dari source resmi Unicorn 2.1.2; URL, fingerprint
-dan langkah build dicatat dalam `tools/build_arm32_dependency.py` serta profil
-target. Source, berkas lisensi upstream dan hasil kompilasi tetap disimpan lokal.
-Unicorn 2.1.2 menyatakan lisensi GPL; beberapa file API memuat pemberitahuan
-LGPL2 dan bagian QEMU/GLib memiliki pemberitahuan masing-masing. Salinan lisensi
-utama tersedia di [GPL2](docs/licenses/UNICORN-COPYING.txt),
-[LGPL2](docs/licenses/UNICORN-COPYING.LGPL2.txt) dan
-[GLib](docs/licenses/UNICORN-COPYING_GLIB.txt). Source upstream tersedia di
-[tag 2.1.2](https://github.com/unicorn-engine/unicorn/tree/2.1.2).
-Pemberitahuan dan lisensi komponen upstream tetap berlaku saat distribusi.
+The supplied reference ZIP has no Git metadata, so its exact upstream commit has
+not been established. Input hashes and the full reference snapshot are retained
+locally.
 
-Snapshot acuan, binary game dan library pihak ketiga tidak dimasukkan dalam
-Git. APK final disediakan melalui Release sesuai permintaan pemilik proyek;
-kunci, APK input, snapshot sumber dan dependency binary tetap lokal.
-Tidak ada lisensi baru yang diterapkan atas karya pihak lain. Heroes Lore 5,
-audio, grafik dan materi game tetap milik pemegang hak masing-masing.
+## Unicorn and other upstream components
+
+The reference runner uses [Unicorn Engine](https://github.com/unicorn-engine/unicorn)
+for CPU execution. The ARM64 library comes from the fingerprinted reference ZIP.
+The ARM32 dependency was built from official Unicorn 2.1.2 source; its URL,
+fingerprint, and build steps are recorded in `tools/build_arm32_dependency.py`
+and the target profile. The full source and compiled dependencies remain local.
+
+Unicorn 2.1.2 declares the GPL license. Some API files carry LGPL2 notices, and
+QEMU/GLib components retain their own notices. Copies of the principal license
+texts are included here:
+
+- [GPL2](docs/licenses/UNICORN-COPYING.txt)
+- [LGPL2](docs/licenses/UNICORN-COPYING.LGPL2.txt)
+- [GLib](docs/licenses/UNICORN-COPYING_GLIB.txt)
+
+Upstream source is available at [Unicorn tag 2.1.2](https://github.com/unicorn-engine/unicorn/tree/2.1.2).
+Upstream component notices and licenses continue to apply to distribution.
+
+## Project maintenance and game ownership
+
+Target adaptations, multiscreen work, and this release are maintained at
+[hisyam28/heroes-lore-5-en-multiscreen](https://github.com/hisyam28/heroes-lore-5-en-multiscreen).
+
+Reference snapshots, game binaries, and third-party libraries are excluded from
+Git. The final APK is provided through GitHub Releases at the project owner's
+request. Signing keys, input APKs, source snapshots, and dependency binaries
+remain local.
+
+No new license is imposed on third-party work. Heroes Lore 5, its audio,
+graphics, and game materials remain the property of their respective rights
+holders. This is an independent community project with no claimed official
+affiliation.

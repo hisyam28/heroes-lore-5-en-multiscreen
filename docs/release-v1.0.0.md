@@ -1,61 +1,64 @@
 # Heroes Lore 5 English Multiscreen v1.0.0
 
-Rilis publik pertama pada `hisyam28/heroes-lore-5-en-multiscreen` memakai nama
-aplikasi **Heroes Lore 5 English**, versionName **1.0.0**, versionCode **1010100**
-dan package runner yang sama seperti build sebelumnya. Label launcher, versi dan
-nama APK tidak lagi memakai kata test. Flag Android `debuggable` dinonaktifkan;
-penandatangan update tetap sama agar data aplikasi dapat dipertahankan.
+The first public release at `hisyam28/heroes-lore-5-en-multiscreen` uses the app
+name **Heroes Lore 5 English**, versionName **1.0.0**, versionCode **1010100**,
+and the same runner package as earlier builds. The launcher label, version, and
+APK filename no longer include the word test. Android's `debuggable` flag is
+disabled, and the update signer is retained to preserve the existing update path.
 
-## Perbaikan quest save lama
+## Older-save quest description fix
 
-Screenshot pengguna menunjukkan judul `Returning Home`, kategori dan lokasi sudah
-Inggris, tetapi deskripsi masih Korea. Instruksi binary target memperlihatkan
-`QuestMgr::DrawQuestString` mengirim buffer deskripsi di `this+28` ke
-`BFont::DrawTextLine`, berbeda dari jalur judul yang sudah tercakup sebelumnya.
-Panggilan itu terjadi pada alamat target `0xce3e8`. Fingerprint kedua fungsi
-ditambahkan ke profil yang wajib cocok dengan APK target.
+The user's screenshot showed an English `Returning Home` title, category, and
+location, while the description remained Korean. Target binary instructions
+show that `QuestMgr::DrawQuestString` passes the description buffer at `this+28`
+to `BFont::DrawTextLine`, unlike the title path that was already covered. This
+call occurs at target address `0xce3e8`. Both function fingerprints were added
+to the profile that must match the target APK.
 
-Bridge tampilan kini menangani `DrawTextLine`: teks berada di argumen 6 dan lebar
-di argumen 4. Teks sumber dicocokkan persis dengan kamus, disalin ke scratch, lalu
-baru fungsi asli menghitung baris dan mengambil halaman scroll. Buffer quest,
-status/progres, file dan format save tidak diubah. Jalur ini berlaku pada runner
-modern API21+; engine legacy API9–20 tetap memakai implementasi native asli.
+The display bridge now handles `DrawTextLine`: text is argument 6 and width is
+argument 4. An exact dictionary match is copied to scratch memory before the
+original function calculates line breaks and selects the scrolled page. The
+quest buffer, status/progress, save files, and save format are unchanged. This
+path applies to the modern API21+ runner; API9–20 retains the original native
+engine implementation.
 
-Regresi menjalankan instruksi ARM quest dan pagination asli, dengan stub hanya
-pada libc dan draw piksel terakhir. Dua posisi scroll menampilkan potongan
-Inggris yang berbeda, sedangkan seluruh buffer QuestMgr tetap identik. Tes ini
-menangkap jalur yang belum dicakup oleh tes pencarian judul sebelumnya.
+The regression executes the original ARM quest and pagination instructions,
+stubbing only libc and the final pixel draw. Two scroll positions produce
+different English text slices while the entire QuestMgr buffer stays identical.
+This catches the description path missed by the earlier title-lookup test.
 
-## Isi paket dan batas kompatibilitas
+## Package contents and compatibility limits
 
-- Minimum manifest Android 2.3/API9, target SDK36/Android16.
-- Engine native ARM asli untuk API9–20, runner ARM32/ARM64 untuk API21+.
-- Multiscreen, penyesuaian sentuhan/fullscreen, lifecycle, optimasi heap/raster/
-  palet/font dan bridge teks lama berlaku pada jalur modern.
-- Aset Inggris: 13.825 field Hangul dan 72 koreksi label Inggris bawaan;
-  opcode, metadata gameplay, input, font, audio/artwork dan guest SO dipertahankan.
-- Instalasi emulator API14/API19 sudah diperiksa pada build sebelumnya.
-  Android2.3 dan seluruh gameplay legacy belum dibuktikan pada perangkat fisik.
-- Artwork rating legacy masih Korea. Layanan online lama tidak dinyatakan pulih.
-- Pengguna menerima hasil umum build sebelumnya, kecuali deskripsi save lama.
-  Perbaikan final diuji statis dan melalui eksekusi ARM; validasi APK final pada
-  ponsel, FPS, audio dan sesi panjang tetap berbeda dari bukti tersebut.
+- Minimum manifest Android 2.3/API9; target SDK36/Android16.
+- Original native ARM engine on API9–20; ARM32/ARM64 runner on API21+.
+- Multiscreen, touch/fullscreen adjustments, lifecycle handling, heap/raster/
+  palette/font optimizations, and the older-text bridge apply to the modern path.
+- English assets cover 13,825 Hangul fields and 72 existing English label
+  corrections. Script opcodes, gameplay metadata, input, fonts, audio/artwork,
+  and the original engine library are retained.
+- API14/API19 emulator installation was checked on earlier builds. Android2.3
+  and all legacy gameplay have not been verified on physical devices.
+- Legacy rating artwork remains Korean. Old online services are not claimed
+  to have been restored.
+- The user accepted the general results of the previous build except for
+  older-save descriptions. The final fix has static and ARM execution evidence;
+  final APK testing on phones, FPS, audio, and long sessions remain separate.
 
-Spesifikasi, fitur dan cara update tersedia pada [README](../README.md).
+See the [README](../README.md) for specifications, features, and update instructions.
 
-## Build lokal
+## Local build
 
-Input dan dependency harus disiapkan lokal sesuai fingerprint
-[profil target](../config/target-profile.json). Jangan mengganti target dengan
-binary referensi. Versi toolchain yang dipakai: JDK17, NDK r28c, Android SDK36,
-Build Tools36 serta android.jar API9 resmi untuk launcher legacy.
+Prepare inputs and dependencies locally using the fingerprints in the
+[target profile](../config/target-profile.json). Do not replace the target with
+reference binaries. The recorded toolchain uses JDK17, NDK r28c, Android SDK36,
+Build Tools36, and the official API9 android.jar for the legacy launcher.
 
-1. Kompilasi aset dengan `tools/translate_assets.py --reference <zip-acuan>
+1. Compile assets with `tools/translate_assets.py --reference <reference-zip>
    --out work/english-release`.
-2. Buat stage baru dengan `tools/prepare_android_runner.py --reference
-   <zip-acuan> --out work/runner-release --localization-vfs
+2. Create a new stage with `tools/prepare_android_runner.py --reference
+   <reference-zip> --out work/runner-release --localization-vfs
    work/english-release/data.vfs.mp3`.
-3. Jalankan builder berikut dengan path toolchain lokal yang sesuai:
+3. Run the builder with your local toolchain paths:
 
    ```powershell
    python -B tools/build_android_test.py --runner work/runner-release/app/src/main --ndk <ndk> --jdk <jdk17> --build-tools <build-tools> --android-jar <android36.jar> --include-legacy --legacy-android-jar <android9.jar> --english-vfs work/english-release/data.vfs.mp3 --version-code 1010100 --version-name 1.0.0 --application-label "Heroes Lore 5 English" --release --out dist/heroes-lore-5-english-multiscreen-v1.0.0.apk
@@ -63,15 +66,22 @@ Build Tools36 serta android.jar API9 resmi untuk launcher legacy.
    python -B -m unittest discover -s tests -v
    ```
 
-`build_android_test.py` adalah nama tooling historis, bukan label APK rilis.
-Builder memeriksa hash stage, identitas baseline, kecocokan kamus/VFS, pembagian
-DEX, kesamaan resource/input/guest, ABI, signature dan alignment. Hasil serta
-kunci tetap lokal; APK final diunggah sebagai aset Release, bukan ditambahkan
-paksa ke Git. Publikasi APK final diminta secara eksplisit oleh pemilik proyek.
+`build_android_test.py` is the historical tooling name, not the release APK label.
+The builder checks stage hashes, baseline identity, dictionary/VFS consistency,
+DEX separation, resource/input/engine preservation, ABIs, signatures, and
+alignment. Build outputs and signing keys stay local. The final APK is uploaded
+as a Release asset rather than force-added to Git, as explicitly requested by
+the project owner.
 
-Metadata dan checksum rilis ada di [config/release.json](../config/release.json).
-Seluruh **78 tes lokal lulus** pada APK final, termasuk nama/versi tanpa test,
-flag debug nonaktif, kehadiran hook quest pada kedua library host, dan kesamaan
-semua payload APK selain manifest serta dua library host yang memang berubah
-dibanding build sebelumnya. Sertifikat final cocok dengan signer update lama.
-Kredit utama: [sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en).
+Release metadata and checksums are in [config/release.json](../config/release.json).
+All **78 local tests passed** against the final package, including the release
+name/version, disabled debug flag, quest hook in both host libraries, and
+unchanged APK payloads except for the manifest and the two intentionally updated
+host libraries. The final certificate matches the previous update signer.
+
+## Credits
+
+The main technical and English translation reference is
+**[sanixmon/heroes-lore-5-en](https://github.com/sanixmon/heroes-lore-5-en)**.
+Additional acknowledgments and upstream component notices are in
+[CREDITS.md](../CREDITS.md).
